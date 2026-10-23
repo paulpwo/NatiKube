@@ -344,6 +344,8 @@ fn default_config_beats_a_shorter_alias_in_an_old_backup() {
     assert_eq!(found[0].aliases, vec!["prod-cluster".to_string()]);
 }
 
+// Symlinks need std::os::unix; Windows symlinks require extra privileges.
+#[cfg(unix)]
 #[test]
 fn symlink_and_target_in_kube_dir_keep_the_real_file_name() {
     let dir = tempfile::tempdir().unwrap();
@@ -356,6 +358,8 @@ fn symlink_and_target_in_kube_dir_keep_the_real_file_name() {
     assert!(found[0].also_in.is_empty());
 }
 
+// Symlinks need std::os::unix; Windows symlinks require extra privileges.
+#[cfg(unix)]
 #[test]
 fn symlinked_default_config_ranks_first_but_shows_the_real_file() {
     let dir = tempfile::tempdir().unwrap();
