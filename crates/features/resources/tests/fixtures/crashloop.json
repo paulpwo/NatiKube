@@ -1,0 +1,31 @@
+{
+  "apiVersion": "v1",
+  "kind": "Pod",
+  "metadata": {
+    "name": "broken-6c8d5f7b9-q8w2e",
+    "namespace": "staging",
+    "creationTimestamp": "2026-10-20T08:00:00Z",
+    "ownerReferences": [
+      {"apiVersion": "apps/v1", "kind": "ReplicaSet", "name": "broken-6c8d5f7b9", "uid": "33333333-3333-3333-3333-333333333333", "controller": true}
+    ]
+  },
+  "spec": {
+    "containers": [
+      {"name": "app", "image": "app:bad"}
+    ]
+  },
+  "status": {
+    "phase": "Running",
+    "conditions": [
+      {"type": "Initialized", "status": "True"},
+      {"type": "Ready", "status": "False", "reason": "ContainersNotReady"}
+    ],
+    "containerStatuses": [
+      {
+        "name": "app", "ready": false, "started": false, "restartCount": 14, "image": "app:bad", "imageID": "",
+        "state": {"waiting": {"reason": "CrashLoopBackOff", "message": "back-off 5m0s restarting failed container"}},
+        "lastState": {"terminated": {"exitCode": 1, "reason": "Error", "startedAt": "2026-10-23T11:00:00Z", "finishedAt": "2026-10-23T11:00:02Z"}}
+      }
+    ]
+  }
+}

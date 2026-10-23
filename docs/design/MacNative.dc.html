@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>NatiKube — macOS native direction</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#FFFFFF}
+a{color:#0062CC}a:hover{color:#004A99}
+</style>
+</helmet>
+<div style="min-height: 900px; background: #FFFFFF; color: #1D1D1F; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif; font-size: 13px; display: flex; flex-wrap: wrap">
+
+  <nav aria-label="Clusters and resources" style="flex: 1 1 220px; max-width: 240px; background: #F2F2F4; border-right: 1px solid #DEDEE3; padding: 16px 10px; display: flex; flex-direction: column; gap: 18px">
+    <div style="display: flex; flex-direction: column; gap: 1px">
+      <p style="margin: 0 0 4px 8px; font-size: 11px; font-weight: 600; color: #6E6E73">Clusters</p>
+      <a href="#" style="display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; color: #1D1D1F; text-decoration: none; background: #E3E3E8"><span style="width: 16px; height: 16px; border-radius: 4px; background: #34C759"></span>demo-cluster<span style="margin-left: auto; font-size: 11px; color: #6E6E73">1 node</span></a>
+      <a href="#" style="display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; color: #1D1D1F; text-decoration: none"><span style="width: 16px; height: 16px; border-radius: 4px; background: #FF9F0A"></span>staging-demo<span style="margin-left: auto; font-size: 11px; color: #6E6E73">AWS</span></a>
+      <a href="#" style="display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; color: #6E6E73; text-decoration: none">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6E6E73" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Add kubeconfig…</a>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 1px">
+      <p style="margin: 0 0 4px 8px; font-size: 11px; font-weight: 600; color: #6E6E73">Workloads</p>
+      <a href="#" style="padding: 5px 8px; border-radius: 6px; color: #1D1D1F; text-decoration: none">Overview</a>
+      <a href="#" style="padding: 5px 8px; border-radius: 6px; color: #FFFFFF; background: #0A84FF; text-decoration: none; display: flex; justify-content: space-between">Pods <span>17</span></a>
+      <a href="#" style="padding: 5px 8px; border-radius: 6px; color: #1D1D1F; text-decoration: none; display: flex; justify-content: space-between">Deployments <span style="color: #6E6E73">12</span></a>
+      <a href="#" style="padding: 5px 8px; border-radius: 6px; color: #1D1D1F; text-decoration: none; display: flex; justify-content: space-between">Stateful Sets <span style="color: #6E6E73">3</span></a>
+      <a href="#" style="padding: 5px 8px; border-radius: 6px; color: #1D1D1F; text-decoration: none; display: flex; justify-content: space-between">Daemon Sets <span style="color: #6E6E73">2</span></a>
+      <a href="#" style="padding: 5px 8px; border-radius: 6px; color: #1D1D1F; text-decoration: none; display: flex; justify-content: space-between">Jobs &amp; Cron Jobs <span style="color: #6E6E73">2</span></a>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 1px">
+      <p style="margin: 0 0 4px 8px; font-size: 11px; font-weight: 600; color: #6E6E73">Cluster</p>
+      <a href="#" style="padding: 5px 8px; border-radius: 6px; color: #1D1D1F; text-decoration: none">Network</a>
+      <a href="#" style="padding: 5px 8px; border-radius: 6px; color: #1D1D1F; text-decoration: none">Config</a>
+      <a href="#" style="padding: 5px 8px; border-radius: 6px; color: #1D1D1F; text-decoration: none">Storage</a>
+      <a href="#" style="padding: 5px 8px; border-radius: 6px; color: #1D1D1F; text-decoration: none">Nodes</a>
+      <a href="#" style="padding: 5px 8px; border-radius: 6px; color: #1D1D1F; text-decoration: none">Events</a>
+      <a href="#" style="padding: 5px 8px; border-radius: 6px; color: #1D1D1F; text-decoration: none">Access Control</a>
+      <a href="#" style="padding: 5px 8px; border-radius: 6px; color: #1D1D1F; text-decoration: none">Custom Resources</a>
+    </div>
+  </nav>
+
+  <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+    <div style="display: flex; align-items: center; gap: 14px; padding: 12px 20px; border-bottom: 1px solid #E5E5EA; flex-wrap: wrap">
+      <div>
+        <h1 style="margin: 0; font-size: 20px; font-weight: 700">Pods</h1>
+        <p style="margin: 1px 0 0; font-size: 11px; color: #6E6E73">demo-cluster · all namespaces</p>
+      </div>
+      <div role="group" aria-label="Filter by status" style="display: flex; background: #EEEEF0; border-radius: 7px; padding: 2px; margin-left: 12px">
+        <button type="button" style="height: 24px; padding: 0 12px; border: 0; border-radius: 5px; background: #FFFFFF; box-shadow: 0 1px 2px rgba(0,0,0,.12); font: inherit; color: #1D1D1F; cursor: pointer">All 17</button>
+        <button type="button" style="height: 24px; padding: 0 12px; border: 0; border-radius: 5px; background: transparent; font: inherit; color: #1D1D1F; cursor: pointer">Running 17</button>
+        <button type="button" style="height: 24px; padding: 0 12px; border: 0; border-radius: 5px; background: transparent; font: inherit; color: #1D1D1F; cursor: pointer">Problems 0</button>
+      </div>
+      <label style="margin-left: auto; display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 7px; background: #EEEEF0; min-width: 220px">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6E6E73" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <span style="position: absolute; width: 1px; height: 1px; overflow: hidden">Search pods</span>
+        <input type="search" placeholder="Search" style="flex: 1; border: 0; background: transparent; outline: none; font: inherit; color: #1D1D1F">
+      </label>
+    </div>
+
+    <div style="flex: 1; display: flex; flex-wrap: wrap">
+      <div style="flex: 999 1 520px; min-width: 0; overflow-x: auto">
+        <table style="width: 100%; min-width: 720px; border-collapse: collapse">
+          <thead>
+            <tr style="text-align: left; font-size: 11px; color: #6E6E73">
+              <th style="padding: 8px 20px; font-weight: 500; border-bottom: 1px solid #E5E5EA">Name</th>
+              <th style="padding: 8px 10px; font-weight: 500; border-bottom: 1px solid #E5E5EA">Namespace</th>
+              <th style="padding: 8px 10px; font-weight: 500; border-bottom: 1px solid #E5E5EA">CPU</th>
+              <th style="padding: 8px 10px; font-weight: 500; border-bottom: 1px solid #E5E5EA">Memory</th>
+              <th style="padding: 8px 10px; font-weight: 500; border-bottom: 1px solid #E5E5EA">Age</th>
+              <th style="padding: 8px 20px; font-weight: 500; border-bottom: 1px solid #E5E5EA">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <sc-for list="{{rows}}" as="r" hint-placeholder-count="17">
+              <tr style="background: {{r.bg}}; color: {{r.fg}}">
+                <td style="padding: 6px 20px; font-family: 'SF Mono', Menlo, monospace; font-size: 11px">{{r.name}}</td>
+                <td style="padding: 6px 10px">{{r.ns}}</td>
+                <td style="padding: 6px 10px; font-variant-numeric: tabular-nums">{{r.cpu}}</td>
+                <td style="padding: 6px 10px; font-variant-numeric: tabular-nums">{{r.mem}}</td>
+                <td style="padding: 6px 10px">{{r.age}}</td>
+                <td style="padding: 6px 20px"><span style="display: inline-flex; align-items: center; gap: 6px"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{r.dot}}"></span>Running</span></td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+
+      <aside aria-label="Inspector" style="flex: 1 1 300px; max-width: 340px; border-left: 1px solid #E5E5EA; background: #FAFAFB; padding: 18px; display: flex; flex-direction: column; gap: 16px">
+        <div>
+          <p style="margin: 0; font-size: 11px; color: #6E6E73">Pod · shop</p>
+          <h2 style="margin: 2px 0 0; font-size: 16px; font-weight: 600; font-family: 'SF Mono', Menlo, monospace; word-break: break-all">payments-api-69b5f8d7c-c8wnj</h2>
+        </div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap">
+          <button type="button" style="height: 28px; padding: 0 12px; border-radius: 6px; border: 1px solid #D1D1D6; background: #FFFFFF; font: inherit; color: #1D1D1F; cursor: pointer">Logs</button>
+          <button type="button" style="height: 28px; padding: 0 12px; border-radius: 6px; border: 1px solid #D1D1D6; background: #FFFFFF; font: inherit; color: #1D1D1F; cursor: pointer">Shell</button>
+          <button type="button" style="height: 28px; padding: 0 12px; border-radius: 6px; border: 1px solid #D1D1D6; background: #FFFFFF; font: inherit; color: #1D1D1F; cursor: pointer">Edit YAML</button>
+        </div>
+        <dl style="margin: 0; display: grid; grid-template-columns: 110px 1fr; row-gap: 8px; column-gap: 12px">
+          <dt style="color: #6E6E73">Status</dt><dd style="margin: 0; color: #248A3D; font-weight: 500">Running</dd>
+          <dt style="color: #6E6E73">Controlled by</dt><dd style="margin: 0"><a href="#">ReplicaSet payments-api-69b5f8d7c</a></dd>
+          <dt style="color: #6E6E73">Node</dt><dd style="margin: 0"><a href="#">demo-node-1</a></dd>
+          <dt style="color: #6E6E73">QoS class</dt><dd style="margin: 0">Burstable</dd>
+          <dt style="color: #6E6E73">Created</dt><dd style="margin: 0">45 minutes ago</dd>
+          <dt style="color: #6E6E73">Restarts</dt><dd style="margin: 0">0</dd>
+        </dl>
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <p style="margin: 0; font-size: 11px; font-weight: 600; color: #6E6E73">Containers</p>
+          <div style="background: #FFFFFF; border: 1px solid #E5E5EA; border-radius: 8px; padding: 10px 12px; display: flex; justify-content: space-between"><span>payments-api</span><span style="color: #248A3D">ready</span></div>
+          <div style="background: #FFFFFF; border: 1px solid #E5E5EA; border-radius: 8px; padding: 10px 12px; display: flex; justify-content: space-between"><span>migrate (init)</span><span style="color: #6E6E73">completed</span></div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <p style="margin: 0; font-size: 11px; font-weight: 600; color: #6E6E73">Labels</p>
+          <div style="display: flex; gap: 6px; flex-wrap: wrap">
+            <span style="padding: 2px 8px; border-radius: 10px; background: #EEEEF0; font-size: 11px">app=payments-api</span>
+            <span style="padding: 2px 8px; border-radius: 10px; background: #EEEEF0; font-size: 11px">pod-template-hash=784d7ffd6</span>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const raw = [
+      ['ingress-nginx-controller-7f6b9d5c8-d4wps','ingress','0.001','34.6Mi','19h'],
+      ['token-service-66f9c7d84-b5hrv','ingress','0.002','21.3Mi','19h'],
+      ['token-service-66f9c7d84-f2xlm','ingress','0.001','16.6Mi','19h'],
+      ['coredns-5dd5756b68-6xk7j','kube-system','0.003','18.3Mi','19h'],
+      ['checkout-api-7d9f8c6b5-m4v8d','shop','0.027','162.1Mi','15h'],
+      ['payments-api-69b5f8d7c-c8wnj','shop','0.002','249.4Mi','45m'],
+      ['catalog-api-84c6d7f5b-l7x9c','shop','0.000','55.1Mi','17h'],
+      ['auth-gateway-5d7c9b8f6-j9sbk','shop','0.000','1.5Mi','17h'],
+      ['kube-proxy-jq5vc','kube-system','0.000','11.8Mi','19h'],
+      ['metrics-server-6b4f8c7d9-s5jvw','kube-system','0.007','27.7Mi','19h'],
+      ['grafana-7c4d8b6f9-k8vtp','kube-system','0.011','36.2Mi','19h'],
+      ['kube-proxy-b7nzt','kube-system','0.000','652Ki','19h'],
+      ['alertmanager-0','monitoring','0.001','23.8Mi','19h'],
+      ['node-exporter-9wqzt','monitoring','0.000','12.9Mi','19h'],
+      ['prometheus-0','monitoring','0.027','140.5Mi','19h'],
+      ['ledger-db-0','payments','0.013','4.4Mi','18h'],
+      ['auth-redis-0','auth','0.010','2.9Mi','18h']
+    ];
+    const rows = raw.map(([name, ns, cpu, mem, age], i) => {
+      const selected = name.startsWith('payments-api-');
+      return {
+        name, ns, cpu, mem, age,
+        bg: selected ? '#0A84FF' : (i % 2 ? '#F7F7F9' : '#FFFFFF'),
+        fg: selected ? '#FFFFFF' : '#1D1D1F',
+        dot: selected ? '#FFFFFF' : '#34C759'
+      };
+    });
+    return { rows };
+  }
+}
+</script>
+</body>
+</html>

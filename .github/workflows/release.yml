@@ -1,0 +1,107 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+# Least privilege: build jobs only read the repo; only the `release` job, which
+# creates the GitHub release, gets `contents: write`.
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  macos:
+    name: macOS arm64
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable branch head; pinned by SHA, so `toolchain` is explicit
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
+      - name: Package
+        run: scripts/package-macos.sh
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: macos-arm64
+          path: |
+            target/dist/*.dmg
+            target/dist/*.sha256
+          if-no-files-found: error
+
+  windows:
+    name: Windows x64
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable branch head; pinned by SHA, so `toolchain` is explicit
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
+      - name: Package
+        shell: pwsh
+        run: scripts/package-windows.ps1
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: windows-x64
+          path: |
+            target/dist/*.zip
+            target/dist/*.sha256
+          if-no-files-found: error
+
+  release:
+    needs: [macos, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Write release notes
+        run: |
+          cat > RELEASE_NOTES.md <<'NOTES'
+          NatiKube is a native Kubernetes desktop app. These builds are not
+          code-signed or notarized, so your OS will warn you the first time.
+
+          ## macOS (Apple Silicon)
+
+          1. Download the `.dmg`, open it and drag NatiKube to Applications.
+          2. Remove the quarantine flag:
+
+             ```sh
+             xattr -dr com.apple.quarantine /Applications/NatiKube.app
+             ```
+
+          3. On macOS 15 and later, if the app is still blocked, open
+             System Settings > Privacy & Security, scroll to the message about
+             NatiKube and choose Open Anyway.
+
+          ## Windows (x64)
+
+          1. Download the `.zip` and extract it.
+          2. Run `natikube.exe`. If SmartScreen shows "Windows protected your
+             PC", choose More info, then Run anyway.
+
+          ## Verify your download
+
+          Each file has a matching `.sha256`. Put both in the same folder and run:
+
+          - macOS: `shasum -a 256 -c NatiKube-<version>-macos-arm64.dmg.sha256`
+          - Windows (PowerShell): `(Get-FileHash NatiKube-<version>-windows-x64.zip).Hash.ToLower()`
+            and compare it with the hash inside the `.sha256` file.
+          NOTES
+      - uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
+        with:
+          body_path: RELEASE_NOTES.md
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            dist/*.dmg
+            dist/*.zip
+            dist/*.sha256

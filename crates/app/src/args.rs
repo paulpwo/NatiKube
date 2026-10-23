@@ -1,0 +1,178 @@
+pub const USAGE: &str = "\
+Usage: natikube [OPTIONS]
+
+Options:
+  --context <NAME>          kubeconfig context (default: current-context)
+  --fake-rows <N>           show N synthetic pods instead of a cluster
+  --exit-after-first-frame  print first_frame_ms / first_rows_frame_ms on stderr and exit
+  --dump-rows               print the loaded pod count and names on stderr
+  --dump <KIND>             print the objects of KIND (e.g. pods) as namespace/name
+                            lines on stdout and exit, without opening a window
+  --appearance <NAME>       standard | command | native | observatory; overrides the
+                            saved appearance for this run only (not persisted)
+  --native-mode <MODE>      light | dark; forces the Native appearance variant for
+                            this run only (not persisted; default follows the system setting)
+  --open-settings           open the Settings window at startup
+  --demo                    show a fictional demo cluster (no kubeconfig, no network,
+                            settings kept in memory); used for screenshots
+  --dump-clusters           print every discovered kubeconfig context (name, source
+                            file name, dedupe status; never credentials) and exit
+  -h, --help                show this help";
+
+use natikube_core::Appearance;
+
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct Args {
+    pub context: Option<String>,
+    pub fake_rows: Option<usize>,
+    pub exit_after_first_frame: bool,
+    pub dump_rows: bool,
+    pub dump: Option<String>,
+    pub appearance: Option<Appearance>,
+    pub dump_clusters: bool,
+    /// `--native-mode`: `Some(true)` = dark, `Some(false)` = light.
+    pub native_dark: Option<bool>,
+    pub open_settings: bool,
+    /// `--demo`: fictional cluster catalog, no kubeconfig, no network.
+    pub demo: bool,
+}
+
+impl Args {
+    /// Parses command-line flags. `Ok(None)` means help was requested.
+    pub fn parse(mut raw: impl Iterator<Item = String>) -> Result<Option<Self>, String> {
+        let mut args = Self::default();
+        while let Some(flag) = raw.next() {
+            match flag.as_str() {
+                "--context" => {
+                    args.context = Some(raw.next().ok_or("--context needs a value")?);
+                }
+                "--fake-rows" => {
+                    let value = raw.next().ok_or("--fake-rows needs a value")?;
+                    let count = value
+                        .parse()
+                        .map_err(|_| format!("--fake-rows expects a number, got {value:?}"))?;
+                    args.fake_rows = Some(count);
+                }
+                "--exit-after-first-frame" => args.exit_after_first_frame = true,
+                "--dump-rows" => args.dump_rows = true,
+                "--dump" => {
+                    args.dump = Some(raw.next().ok_or("--dump needs a kind, e.g. pods")?);
+                }
+                "--appearance" => {
+                    let value = raw.next().ok_or("--appearance needs a value")?;
+                    args.appearance = Some(Appearance::from_slug(&value).ok_or_else(|| {
+                        format!(
+                            "--appearance expects standard|command|native|observatory, got {value:?}"
+                        )
+                    })?);
+                }
+                "--native-mode" => {
+                    let value = raw.next().ok_or("--native-mode needs a value")?;
+                    args.native_dark = match value.to_lowercase().as_str() {
+                        "light" => Some(false),
+                        "dark" => Some(true),
+                        _ => {
+                            return Err(format!("--native-mode expects light|dark, got {value:?}"));
+                        }
+                    };
+                }
+                "--open-settings" => args.open_settings = true,
+                "--demo" => args.demo = true,
+                "--dump-clusters" => args.dump_clusters = true,
+                "-h" | "--help" => return Ok(None),
+                other => return Err(format!("unknown argument {other:?}")),
+            }
+        }
+        Ok(Some(args))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Args;
+
+    fn parse(list: &[&str]) -> Result<Option<Args>, String> {
+        Args::parse(list.iter().map(|s| s.to_string()))
+    }
+
+    #[test]
+    fn parses_all_flags() {
+        let args = parse(&[
+            "--context",
+            "dev-cluster",
+            "--fake-rows",
+            "10000",
+            "--exit-after-first-frame",
+            "--dump-rows",
+        ])
+        .unwrap()
+        .unwrap();
+        assert_eq!(args.context.as_deref(), Some("dev-cluster"));
+        assert_eq!(args.fake_rows, Some(10_000));
+        assert!(args.exit_after_first_frame);
+        assert!(args.dump_rows);
+        assert_eq!(args.dump, None);
+    }
+
+    #[test]
+    fn parses_dump_kind() {
+        let args = parse(&["--context", "dev-cluster", "--dump", "pods"])
+            .unwrap()
+            .unwrap();
+        assert_eq!(args.dump.as_deref(), Some("pods"));
+        assert_eq!(args.context.as_deref(), Some("dev-cluster"));
+        assert!(parse(&["--dump"]).is_err());
+    }
+
+    #[test]
+    fn parses_appearance_and_dump_clusters() {
+        use natikube_core::Appearance;
+        let args = parse(&["--appearance", "Observatory", "--dump-clusters"])
+            .unwrap()
+            .unwrap();
+        assert_eq!(args.appearance, Some(Appearance::Observatory));
+        assert!(args.dump_clusters);
+        assert!(parse(&["--appearance", "neon"]).is_err());
+        assert!(parse(&["--appearance"]).is_err());
+    }
+
+    #[test]
+    fn parses_native_mode() {
+        assert_eq!(
+            parse(&["--native-mode", "dark"])
+                .unwrap()
+                .unwrap()
+                .native_dark,
+            Some(true)
+        );
+        assert_eq!(
+            parse(&["--native-mode", "Light"])
+                .unwrap()
+                .unwrap()
+                .native_dark,
+            Some(false)
+        );
+        assert_eq!(parse(&[]).unwrap().unwrap().native_dark, None);
+        assert!(parse(&["--native-mode", "blue"]).is_err());
+        assert!(parse(&["--native-mode"]).is_err());
+    }
+
+    #[test]
+    fn parses_demo() {
+        assert!(parse(&["--demo"]).unwrap().unwrap().demo);
+        assert!(!parse(&[]).unwrap().unwrap().demo);
+    }
+
+    #[test]
+    fn defaults_to_current_context() {
+        assert_eq!(parse(&[]).unwrap().unwrap(), Args::default());
+    }
+
+    #[test]
+    fn rejects_bad_input() {
+        assert!(parse(&["--fake-rows", "many"]).is_err());
+        assert!(parse(&["--context"]).is_err());
+        assert!(parse(&["--watch-everything"]).is_err());
+        assert_eq!(parse(&["--help"]).unwrap(), None);
+    }
+}

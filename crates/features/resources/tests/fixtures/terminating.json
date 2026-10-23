@@ -1,0 +1,29 @@
+{
+  "apiVersion": "v1",
+  "kind": "Pod",
+  "metadata": {
+    "name": "web-5b7c9d8f6-zz9yy",
+    "namespace": "default",
+    "creationTimestamp": "2026-10-23T09:00:00Z",
+    "deletionTimestamp": "2026-10-23T12:00:30Z",
+    "deletionGracePeriodSeconds": 30,
+    "ownerReferences": [
+      {"apiVersion": "apps/v1", "kind": "ReplicaSet", "name": "web-5b7c9d8f6", "uid": "66666666-6666-6666-6666-666666666666", "controller": true}
+    ]
+  },
+  "spec": {
+    "containers": [
+      {"name": "web", "image": "web:1"}
+    ]
+  },
+  "status": {
+    "phase": "Running",
+    "conditions": [
+      {"type": "Initialized", "status": "True"},
+      {"type": "Ready", "status": "True"}
+    ],
+    "containerStatuses": [
+      {"name": "web", "ready": true, "started": true, "restartCount": 0, "image": "web:1", "imageID": "", "state": {"running": {"startedAt": "2026-10-23T09:00:04Z"}}}
+    ]
+  }
+}

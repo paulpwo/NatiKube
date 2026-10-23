@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-label="NatiKube">
+  <title>NatiKube</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#20263A"/>
+      <stop offset="1" stop-color="#0E1016"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.52" r="0.42">
+      <stop offset="0" stop-color="#6C86FF" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#6C86FF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="top" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#C3D0FF"/>
+      <stop offset="1" stop-color="#8CA4FF"/>
+    </linearGradient>
+    <linearGradient id="left" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="#7690FF"/>
+      <stop offset="1" stop-color="#4A63E0"/>
+    </linearGradient>
+    <linearGradient id="right" x1="1" y1="0" x2="0.6" y2="1">
+      <stop offset="0" stop-color="#3E58D0"/>
+      <stop offset="1" stop-color="#253993"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.22"/>
+      <stop offset="0.5" stop-color="#FFFFFF" stop-opacity="0.04"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- macOS icon grid: 824 x 824 rounded square inset 100 px -->
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
+  <rect x="101" y="101" width="822" height="822" rx="184" fill="none" stroke="url(#rim)" stroke-width="2"/>
+  <circle cx="512" cy="530" r="350" fill="url(#glow)"/>
+
+  <!-- soft shadow under the cube -->
+  <ellipse cx="512" cy="790" rx="190" ry="34" fill="#000000" opacity="0.35"/>
+
+  <!-- isometric cube -->
+  <g stroke-linejoin="round">
+    <polygon points="512,262 726,386 512,510 298,386" fill="url(#top)"/>
+    <polygon points="298,386 512,510 512,758 298,634" fill="url(#left)"/>
+    <polygon points="726,386 726,634 512,758 512,510" fill="url(#right)"/>
+    <!-- face seams -->
+    <polyline points="298,386 512,510 726,386" fill="none" stroke="#141826" stroke-width="10"/>
+    <line x1="512" y1="510" x2="512" y2="758" stroke="#141826" stroke-width="10"/>
+    <!-- light on the top edges -->
+    <polyline points="298,386 512,262 726,386" fill="none" stroke="#FFFFFF" stroke-opacity="0.7" stroke-width="4"/>
+  </g>
+
+  <!-- "N" engraved on the left face (isometric skew of the face plane) -->
+  <g transform="matrix(1 0.5776 0 1 298 386)">
+    <polygon points="58,62 90,62 124,128 124,62 156,62 156,186 124,186 90,120 90,186 58,186" fill="#FFFFFF" fill-opacity="0.92"/>
+  </g>
+
+  <!-- "K" engraved on the right face (isometric skew of the face plane) -->
+  <g transform="matrix(1 -0.5776 0 1 512 510)">
+    <polygon points="58,62 90,62 90,112 122,62 158,62 118,124 158,186 122,186 90,136 90,186 58,186" fill="#FFFFFF" fill-opacity="0.86"/>
+  </g>
+
+  <!-- small status dot: the cluster is live -->
+  <circle cx="726" cy="300" r="34" fill="#3FD07F"/>
+  <circle cx="726" cy="300" r="34" fill="none" stroke="#0E1016" stroke-width="10"/>
+</svg>

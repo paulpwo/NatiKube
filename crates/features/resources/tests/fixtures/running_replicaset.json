@@ -1,0 +1,30 @@
+{
+  "apiVersion": "v1",
+  "kind": "Pod",
+  "metadata": {
+    "name": "api-7d9f8c6b5-x2k4p",
+    "namespace": "default",
+    "creationTimestamp": "2026-10-23T10:00:00Z",
+    "ownerReferences": [
+      {"apiVersion": "apps/v1", "kind": "ReplicaSet", "name": "api-7d9f8c6b5", "uid": "11111111-1111-1111-1111-111111111111", "controller": true}
+    ]
+  },
+  "spec": {
+    "containers": [
+      {"name": "api", "image": "api:1"},
+      {"name": "metrics", "image": "metrics:1"}
+    ]
+  },
+  "status": {
+    "phase": "Running",
+    "conditions": [
+      {"type": "Initialized", "status": "True"},
+      {"type": "Ready", "status": "True"},
+      {"type": "PodScheduled", "status": "True"}
+    ],
+    "containerStatuses": [
+      {"name": "api", "ready": true, "started": true, "restartCount": 2, "image": "api:1", "imageID": "", "state": {"running": {"startedAt": "2026-10-23T10:00:05Z"}}},
+      {"name": "metrics", "ready": true, "started": true, "restartCount": 1, "image": "metrics:1", "imageID": "", "state": {"running": {"startedAt": "2026-10-23T10:00:05Z"}}}
+    ]
+  }
+}

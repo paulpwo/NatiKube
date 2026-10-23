@@ -1,0 +1,102 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/core",
+    "crates/kube-client",
+    "crates/ui-kit",
+    "crates/features/clusters",
+    "crates/features/resources",
+    "crates/features/detail",
+    "crates/features/logs",
+    "crates/features/portforward",
+    "crates/features/terminal",
+    "crates/features/palette",
+    "crates/features/settings",
+    "crates/shell",
+    "crates/app",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+authors = ["Paul Osinga"]
+repository = "https://github.com/paulpwo/NatiKube"
+homepage = "https://github.com/paulpwo/NatiKube"
+description = "A 100% native Kubernetes desktop app written in Rust with GPUI."
+publish = false
+
+# Every dependency any crate may need is declared here AND in that crate's
+# Cargo.toml, so parallel feature work never has to touch a manifest or the
+# lockfile. See docs/architecture.md.
+[workspace.dependencies]
+# Internal crates
+natikube-core = { path = "crates/core" }
+natikube-kube-client = { path = "crates/kube-client" }
+natikube-ui-kit = { path = "crates/ui-kit" }
+natikube-clusters = { path = "crates/features/clusters" }
+natikube-resources = { path = "crates/features/resources" }
+natikube-detail = { path = "crates/features/detail" }
+natikube-logs = { path = "crates/features/logs" }
+natikube-portforward = { path = "crates/features/portforward" }
+natikube-terminal = { path = "crates/features/terminal" }
+natikube-palette = { path = "crates/features/palette" }
+natikube-settings = { path = "crates/features/settings" }
+natikube-shell = { path = "crates/shell" }
+
+# UI: GPUI Kit facade (re-exports the gpui-pre =0.3.9 build it pins). No
+# webview or web runtime: only the `component` layer is enabled. The detail
+# crate additionally enables the `tree-sitter-yaml` feature for the editor.
+gpui-kit = { version = "=0.8.0", default-features = false, features = ["component"] }
+
+# Kubernetes
+kube = { version = "4.2.0", default-features = false, features = ["client", "config", "runtime", "ws", "rustls-tls", "ring"] }
+kube-runtime = "4.2.0"
+k8s-openapi = { version = "0.28.0", features = ["v1_33"] }
+json-patch = "4.2.0"
+
+# Async
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "sync", "time", "net", "io-util", "process"] }
+futures = "0.3"
+futures-core = "0.3"
+
+# Data and errors
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml_ng = "0.10"
+chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
+dirs = "6"
+thiserror = "2"
+anyhow = "1"
+tracing = "0.1"
+
+# Terminal (natikube-terminal only)
+alacritty_terminal = "0.26"
+portable-pty = "0.9"
+
+# Native save/open dialogs (NSOpenPanel / NSSavePanel on macOS)
+rfd = { version = "0.17", default-features = false }
+
+# Performance experiments (settings-perf-polish O2/O5). Both are optional and
+# off by default: crates/app features `mimalloc` and `dhat-heap`.
+mimalloc = { version = "0.1", default-features = false }
+dhat = "0.3"
+smallvec = "1"
+
+# Runtime Dock icon (natikube-shell, macOS only)
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSImage", "NSResponder"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSData"] }
+
+# Windows only: embeds the exe icon and version info (crates/app/build.rs)
+embed-resource = "3"
+
+# Dev
+tempfile = "3"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = true
+panic = "abort"
