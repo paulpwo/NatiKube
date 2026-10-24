@@ -301,6 +301,53 @@ impl Clamp for DataPrefs {
     }
 }
 
+/// Updates section.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(from = "UpdatePrefsRaw")]
+pub struct UpdatePrefs {
+    /// Look for a newer release on GitHub once per launch (default on).
+    pub check_on_startup: bool,
+    /// Version the user chose "Skip this version" for; `None` = nothing skipped.
+    pub skipped_version: Option<String>,
+}
+
+impl Default for UpdatePrefs {
+    fn default() -> Self {
+        Self {
+            check_on_startup: true,
+            skipped_version: None,
+        }
+    }
+}
+
+/// Tolerant shadow of [`UpdatePrefs`]: bad fields become `None` (= default).
+#[derive(Deserialize, Default)]
+#[serde(default)]
+struct UpdatePrefsRaw {
+    #[serde(deserialize_with = "lenient")]
+    check_on_startup: Option<bool>,
+    #[serde(deserialize_with = "lenient")]
+    skipped_version: Option<String>,
+}
+
+impl From<UpdatePrefsRaw> for UpdatePrefs {
+    fn from(raw: UpdatePrefsRaw) -> Self {
+        let d = Self::default();
+        let mut value = Self {
+            check_on_startup: raw.check_on_startup.unwrap_or(d.check_on_startup),
+            skipped_version: raw.skipped_version,
+        };
+        value.clamp_in_place();
+        value
+    }
+}
+
+impl Clamp for UpdatePrefs {
+    fn clamp_in_place(&mut self) {
+        normalize_name(&mut self.skipped_version);
+    }
+}
+
 /// Blank strings mean "unset".
 fn normalize_name(value: &mut Option<String>) {
     if let Some(text) = value {
@@ -323,6 +370,7 @@ pub struct UserPrefs {
     pub terminal: TerminalPrefs,
     pub logs: LogPrefs,
     pub data: DataPrefs,
+    pub updates: UpdatePrefs,
 }
 
 impl Clamp for UserPrefs {
@@ -331,5 +379,6 @@ impl Clamp for UserPrefs {
         self.terminal.clamp_in_place();
         self.logs.clamp_in_place();
         self.data.clamp_in_place();
+        self.updates.clamp_in_place();
     }
 }

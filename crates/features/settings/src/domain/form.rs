@@ -23,6 +23,7 @@ pub enum PrefEdit {
     LogWrap(bool),
     MetricsPollSecs(u16),
     DefaultNamespace(String),
+    CheckUpdatesOnStartup(bool),
 }
 
 fn blank_is_none(text: String) -> Option<String> {
@@ -47,6 +48,7 @@ pub fn apply_edit(prefs: &UserPrefs, edit: PrefEdit) -> UserPrefs {
         PrefEdit::LogWrap(value) => next.logs.wrap = value,
         PrefEdit::MetricsPollSecs(value) => next.data.metrics_poll_secs = value,
         PrefEdit::DefaultNamespace(text) => next.data.default_namespace = blank_is_none(text),
+        PrefEdit::CheckUpdatesOnStartup(value) => next.updates.check_on_startup = value,
     }
     next.clamp_in_place();
     next

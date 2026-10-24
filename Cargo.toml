@@ -12,6 +12,7 @@ members = [
     "crates/features/terminal",
     "crates/features/palette",
     "crates/features/settings",
+    "crates/features/updates",
     "crates/shell",
     "crates/app",
 ]
@@ -42,6 +43,7 @@ natikube-portforward = { path = "crates/features/portforward" }
 natikube-terminal = { path = "crates/features/terminal" }
 natikube-palette = { path = "crates/features/palette" }
 natikube-settings = { path = "crates/features/settings" }
+natikube-updates = { path = "crates/features/updates" }
 natikube-shell = { path = "crates/shell" }
 
 # UI: GPUI Kit facade (re-exports the gpui-pre =0.3.9 build it pins). No
@@ -73,6 +75,17 @@ tracing = "0.1"
 # Terminal (natikube-terminal only)
 alacritty_terminal = "0.26"
 portable-pty = "0.9"
+
+# Update check (natikube-updates only): the HTTP stack kube already pulls in
+# (hyper + rustls with the ring provider), plus semver for version precedence.
+# No reqwest and no second TLS stack.
+hyper = { version = "1", default-features = false, features = ["client", "http1"] }
+hyper-util = { version = "0.1", default-features = false, features = ["client-legacy", "http1", "tokio"] }
+hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "native-tokio", "ring", "tls12"] }
+http-body-util = "0.1"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+bytes = "1"
+semver = "1"
 
 # Native save/open dialogs (NSOpenPanel / NSSavePanel on macOS)
 rfd = { version = "0.17", default-features = false }

@@ -4253,6 +4253,7 @@ dependencies = [
  "natikube-kube-client",
  "natikube-resources",
  "natikube-shell",
+ "natikube-updates",
  "serde_json",
  "tempfile",
  "tokio",
@@ -4476,6 +4477,7 @@ dependencies = [
  "natikube-settings",
  "natikube-terminal",
  "natikube-ui-kit",
+ "natikube-updates",
  "objc2 0.6.5",
  "objc2-app-kit 0.3.2",
  "objc2-foundation 0.3.2",
@@ -4520,6 +4522,28 @@ version = "0.1.0"
 dependencies = [
  "gpui-kit",
  "natikube-core",
+]
+
+[[package]]
+name = "natikube-updates"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "gpui-kit",
+ "http-body-util",
+ "hyper",
+ "hyper-rustls",
+ "hyper-util",
+ "natikube-core",
+ "natikube-kube-client",
+ "natikube-ui-kit",
+ "rustls",
+ "semver",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

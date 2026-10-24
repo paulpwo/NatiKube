@@ -113,6 +113,12 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
 
+## Updates and privacy
+
+NatiKube does not phone home, with one exception: when it starts it makes **one read-only request to `api.github.com`** (`GET /repos/paulpwo/NatiKube/releases`) to see whether a newer release exists. If there is one, a dismissible dialog offers it as an optional update: **Download** opens the release page in your browser, **Later** asks again next launch, **Skip this version** stays quiet until a newer one appears. Nothing is downloaded or installed automatically.
+
+The request carries only a `User-Agent: NatiKube/<version>` header (GitHub requires one); no identifiers, no telemetry, and any failure (offline, rate limit) is silent. To turn it off, untick **Settings > Updates > Check for updates on startup**, set `updates.check_on_startup` to `false` in `settings.json`, or launch with the environment variable `NATIKUBE_NO_UPDATE_CHECK=1`. `--demo` never checks.
+
 ## Keyboard shortcuts
 
 | Shortcut | Action |

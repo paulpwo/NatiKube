@@ -17,6 +17,7 @@ use natikube_portforward::PortForwardsView;
 use natikube_resources::{LoadState, ResourcesView};
 use natikube_terminal::TerminalView;
 use natikube_ui_kit::{ActiveTokens as _, empty_state, error_state};
+use natikube_updates::{UpdateEvent, UpdateModal};
 
 use crate::app::ShellOptions;
 use crate::dock::DockTab;
@@ -41,6 +42,9 @@ pub struct ShellView {
     pub(crate) rail: Entity<ClusterRail>,
     pub(crate) header: Entity<ClusterHeader>,
     pub(crate) palette: Entity<PaletteView>,
+    pub(crate) update_modal: Entity<UpdateModal>,
+    pub(crate) update_check_started: bool,
+    pub(crate) _update_check: Option<Task<()>>,
     pub(crate) nav: NavState,
     pub(crate) dock: DockState,
     pub(crate) dock_tabs: Vec<DockTab>,
@@ -91,6 +95,7 @@ impl ShellView {
         header.update(cx, |header, cx| header.set_clusters(clusters.clone(), cx));
         let port_forwards = cx.new(|cx| PortForwardsView::new(window, cx));
         let palette = cx.new(|cx| PaletteView::new(window, cx));
+        let update_modal = cx.new(UpdateModal::new);
 
         let mut subscriptions = vec![
             cx.subscribe_in(
@@ -121,6 +126,11 @@ impl ShellView {
                     this.dispatch(command.clone(), window, cx)
                 },
             ),
+            cx.subscribe_in(
+                &update_modal,
+                window,
+                |this, _, event: &UpdateEvent, _, cx| this.on_update_event(event.clone(), cx),
+            ),
             // The first-rows measurement reads the table size on render.
             cx.observe(&port_forwards, |_, _, cx| cx.notify()),
             // Native follows the macOS light/dark setting live.
@@ -146,6 +156,9 @@ impl ShellView {
             rail,
             header,
             palette,
+            update_modal,
+            update_check_started: false,
+            _update_check: None,
             nav: NavState::new(ViewId::Resource(kinds::POD)),
             dock: DockState::default(),
             dock_tabs: Vec::new(),
@@ -793,6 +806,12 @@ impl Render for ShellView {
             .map(|s| s.resources.read(cx).item_count(cx))
             .unwrap_or(0);
         self.track_frames(rows, window);
+        // The update check starts once the window has rendered, so it can
+        // never delay the first frame.
+        if !self.update_check_started {
+            self.update_check_started = true;
+            self.begin_update_check(window, cx);
+        }
 
         let body = match cx.tokens().appearance {
             Appearance::Standard => self.render_standard(cx),
@@ -806,5 +825,6 @@ impl Render for ShellView {
             .size_full()
             .child(body)
             .child(self.palette.clone())
+            .child(self.update_modal.clone())
     }
 }

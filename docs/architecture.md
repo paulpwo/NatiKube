@@ -19,6 +19,7 @@ Electron. Screaming + hexagonal layout: each feature is a vertical slice with
 | `natikube-terminal` | `crates/features/terminal` | F5: local shell and pod exec terminals. |
 | `natikube-palette` | `crates/features/palette` | F7: command palette (⌘K) overlay. |
 | `natikube-settings` | `crates/features/settings` | F8: Settings window (⌘,). |
+| `natikube-updates` | `crates/features/updates` | Startup update check: GitHub Releases fetch (hyper + rustls), semver selection, the dismissible "update available" modal. |
 | `natikube-shell` | `crates/shell` | Window layout and `AppCommand` routing. |
 | `natikube-app` | `crates/app` | Binary `natikube`: CLI flags, catalog and settings loading. |
 
@@ -170,15 +171,16 @@ step wires them.
 * `ResourceRef { cluster, kind, namespace: Option<String>, name }`, `Display` = `Pod default/api-1`.
 * `ViewId { ClusterOverview, WorkloadsOverview, Resource(ResourceKind) }`, `.title()`;
   `sidebar()` returns the Freelens-ordered `Vec<SidebarSection>`; `kind_title(&kind)`.
-* `Settings { extra_kubeconfigs, last_cluster, appearance, ui: UiPrefs, terminal: TerminalPrefs, logs: LogPrefs, data: DataPrefs, clusters: BTreeMap<String, ClusterPrefs{ namespaces, last_view }> }`.
+* `Settings { extra_kubeconfigs, last_cluster, appearance, ui: UiPrefs, terminal: TerminalPrefs, logs: LogPrefs, data: DataPrefs, updates: UpdatePrefs, clusters: BTreeMap<String, ClusterPrefs{ namespaces, last_view }> }`.
   Parsing is tolerant per field (wrong type or unknown appearance -> that field's default; the file is never discarded)
   and numbers are clamped on load and in `apply_user_prefs`. Defaults and ranges (all `pub const` ranges on the structs):
   `UiPrefs { font_size: u8 = 13 (10..=20), zoom_percent: u16 = 100 (75..=150), density: Density = Comfortable (Comfortable|Compact, serde lowercase),
   mono_font: Option<String> = None (system mono), mono_font_size: u8 = 12 (8..=20) }`,
   `TerminalPrefs { font_size: u8 = 12 (8..=24), shell: Option<String> = None ($SHELL, else /bin/zsh) }`,
   `LogPrefs { tail_lines: u32 = 1000 (10..=100000), timestamps: bool = false, wrap: bool = false }` (defaults for new log tabs),
-  `DataPrefs { metrics_poll_secs: u16 = 15 (5..=300), default_namespace: Option<String> = None (all) }`. Blank strings normalize to `None`.
-  `Settings::user_prefs() -> UserPrefs { appearance, ui, terminal, logs, data }` and `apply_user_prefs(UserPrefs)` (clamps; keeps clusters/last_cluster/extra_kubeconfigs).
+  `DataPrefs { metrics_poll_secs: u16 = 15 (5..=300), default_namespace: Option<String> = None (all) }`,
+  `UpdatePrefs { check_on_startup: bool = true, skipped_version: Option<String> = None }`. Blank strings normalize to `None`.
+  `Settings::user_prefs() -> UserPrefs { appearance, ui, terminal, logs, data, updates }` and `apply_user_prefs(UserPrefs)` (clamps; keeps clusters/last_cluster/extra_kubeconfigs).
   `SettingsStore` port (`load`/`save`), `MemorySettingsStore`. `NamespaceFilter { All, Only(BTreeSet<String>) }`
   with `matches(ns)` and `label()`.
 * Formatting: `format_age`/`age_since` (kubectl style), `format_cpu(cores)` (`0.007`),
@@ -329,7 +331,7 @@ copy/paste. Exec is unit-tested only; agents never exec against a real cluster.
 
 * `open_settings_window(settings: Settings, cx: &mut App) -> anyhow::Result<(AnyWindowHandle, Entity<SettingsView>)>` (760x560, title "Settings").
 * `SettingsView::new(settings, window, cx)`, `set_settings(Settings, cx)` (shell pushes external changes), `settings()`, `section()`, `select_section(SettingsSection, cx)`.
-  `SettingsSection { Appearance, Clusters, Terminal, Logs, Data }` with `label()` and `all()`.
+  `SettingsSection { Appearance, Clusters, Terminal, Logs, Data, Updates }` with `label()` and `all()`.
 * Emits `SettingsChanged(Box<UserPrefs>)` (full new preference set, on every edit), `AddKubeconfig`, `ImportFreelens`, `ReloadClusters`, `RemoveKubeconfig(PathBuf)`.
   It never writes settings.json itself; the shell persists. Only the main window quits the app when closed.
 * ⌘, and NatiKube -> Settings… route to `AppCommand::OpenSettings`.
@@ -346,13 +348,33 @@ To implement: local TCP listener bridged to the kube portforward API, stop
 button, open-in-browser, list refresh. Listeners are unit-tested only; agents
 never port-forward against a real cluster.
 
+### updates, `natikube_updates`
+
+* `domain` (pure, unit-tested): `Release { tag, version: semver::Version, name, notes, url }`, `parse_tag` (`v0.2.0` or `0.2.0`),
+  `newest_release` (highest semver precedence; pre-releases count, since every release is one during the alpha),
+  `available_update(current, releases, skipped) -> Option<Release>` (strictly newer than `current`, and not at or below the skipped version),
+  `notes_excerpt` (Markdown to a short plain-text excerpt) and `should_check(CheckContext { setting_enabled, demo, exit_after_first_frame, env_disable })`.
+* `adapters`: `fetch_releases(version)` is one `GET https://api.github.com/repos/paulpwo/NatiKube/releases?per_page=10`
+  over hyper + hyper-rustls (ring provider, native roots; the stack kube already pulls in, no reqwest), 5 s timeout, no redirects,
+  1 MiB body cap, `User-Agent: NatiKube/<version>`, `Accept: application/vnd.github+json`. `parse_releases` drops drafts, tags that are not
+  versions and entries of the wrong shape one by one, and only keeps a `html_url` under `github.com/paulpwo/NatiKube/releases/`.
+* `ui`: `UpdateModal` (`show(UpdateOffer, window, cx)`) emits `UpdateEvent { Download(url), Later, Skip { version, persist } }` and closes itself first.
+  Escape and a click outside send `Later`. It is styled with `cx.tokens().palette`, so it follows every appearance.
+* Wiring (shell `update_ops.rs`): the first render starts the check, so it never delays the first frame. The request runs on the shared Tokio
+  runtime (`natikube_kube_client::spawn`) and a GPUI task awaits it; any failure is a `tracing::debug!` line and no UI. The modal is the last
+  child of the window root, like the palette. `Download` reuses `natikube_portforward::domain::open_url`; `Skip` stores
+  `updates.skipped_version` and `Later` stores nothing. `Settings.updates { check_on_startup = true, skipped_version = None }`, tolerant like the rest
+  of the file, edited in Settings > Updates. `NATIKUBE_NO_UPDATE_CHECK=1`, `--demo` and `--exit-after-first-frame` turn the check off.
+* `--fake-update <version>` (hidden, not in `--help`) injects a simulated release with no network. It overrides `--demo` and the setting, and its
+  "Skip" is never persisted.
+
 ## Shell (`natikube-shell`)
 
 Layout: cluster rail | sidebar (cluster header + sections from `core::sidebar()`)
 | column of top tabs (entries of the active group), main content with an
 optional resizable right detail panel, optional resizable bottom dock, status
 bar. `ShellOptions { store, catalog, initial_cluster, fake_rows, started_at,
-exit_after_first_frame, rows_timeout }` and `run(options)`. Pure state lives in
+exit_after_first_frame, rows_timeout, app_version, fake_update, .. }` and `run(options)`. Pure state lives in
 `state.rs` (`NavState`, `DockState`, unit-tested). Frame timing
 (`first_frame_ms`, `first_rows_frame_ms`) is printed on stderr by the shell.
 
@@ -366,6 +388,7 @@ exit_after_first_frame, rows_timeout }` and `run(options)`. Pure state lives in
 | `--dump <kind>` | print the engine's objects for `<kind>` on stdout (`namespace/name`, sorted) and exit; no window |
 | `--appearance <name>` | `standard\|command\|native\|observatory`; overrides the saved appearance for this run only (never persisted); `ShellOptions.appearance_override` |
 | `--dump-clusters` | prints `context<TAB>source file name<TAB>unique\|deduped (also in: ...)` per discovered context and exits; no window, no secrets. Uses `load_catalog` + `ClusterInfo::also_in` |
+| `--fake-update <version>` | hidden dev flag: shows the update modal for that version without any request (overrides `--demo`); never persisted |
 | `--dump-rows` | F0 compatibility: prints `rows_count=` and `row=ns/name` for pods on stderr before the window opens (used by `scripts/measure.sh`) |
 
 ## Testing

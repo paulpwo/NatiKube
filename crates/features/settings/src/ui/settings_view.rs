@@ -617,6 +617,22 @@ impl SettingsView {
                 p,
             ))
     }
+
+    fn render_updates(&self, cx: &mut Context<Self>) -> Div {
+        let p = cx.tokens().palette;
+        let check = self.toggle(
+            "settings-update-check",
+            self.settings.updates.check_on_startup,
+            PrefEdit::CheckUpdatesOnStartup,
+            cx,
+        );
+        page("Updates", p).child(field(
+            "Check for updates on startup",
+            Some("One request to api.github.com when NatiKube opens. Nothing else is sent."),
+            check,
+            p,
+        ))
+    }
 }
 
 impl Render for SettingsView {
@@ -649,6 +665,7 @@ impl Render for SettingsView {
             SettingsSection::Terminal => self.render_terminal(cx),
             SettingsSection::Logs => self.render_logs(cx),
             SettingsSection::Data => self.render_data(cx),
+            SettingsSection::Updates => self.render_updates(cx),
         };
         h_flex()
             .size_full()

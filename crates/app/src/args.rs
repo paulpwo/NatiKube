@@ -35,6 +35,9 @@ pub struct Args {
     pub open_settings: bool,
     /// `--demo`: fictional cluster catalog, no kubeconfig, no network.
     pub demo: bool,
+    /// `--fake-update <version>` (hidden): show the update modal for this
+    /// version without contacting GitHub.
+    pub fake_update: Option<String>,
 }
 
 impl Args {
@@ -75,6 +78,13 @@ impl Args {
                             return Err(format!("--native-mode expects light|dark, got {value:?}"));
                         }
                     };
+                }
+                "--fake-update" => {
+                    let value = raw.next().ok_or("--fake-update needs a version")?;
+                    if natikube_updates::parse_tag(&value).is_none() {
+                        return Err(format!("--fake-update expects a version, got {value:?}"));
+                    }
+                    args.fake_update = Some(value);
                 }
                 "--open-settings" => args.open_settings = true,
                 "--demo" => args.demo = true,
@@ -161,6 +171,18 @@ mod tests {
     fn parses_demo() {
         assert!(parse(&["--demo"]).unwrap().unwrap().demo);
         assert!(!parse(&[]).unwrap().unwrap().demo);
+    }
+
+    #[test]
+    fn parses_the_hidden_fake_update_flag() {
+        let args = parse(&["--demo", "--fake-update", "9.9.9"])
+            .unwrap()
+            .unwrap();
+        assert_eq!(args.fake_update.as_deref(), Some("9.9.9"));
+        assert!(args.demo);
+        assert_eq!(parse(&[]).unwrap().unwrap().fake_update, None);
+        assert!(parse(&["--fake-update"]).is_err());
+        assert!(parse(&["--fake-update", "soon"]).is_err());
     }
 
     #[test]

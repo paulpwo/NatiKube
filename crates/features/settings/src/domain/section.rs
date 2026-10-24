@@ -7,6 +7,7 @@ pub enum SettingsSection {
     Terminal,
     Logs,
     Data,
+    Updates,
 }
 
 impl SettingsSection {
@@ -17,16 +18,18 @@ impl SettingsSection {
             Self::Terminal => "Terminal",
             Self::Logs => "Logs",
             Self::Data => "Data",
+            Self::Updates => "Updates",
         }
     }
 
-    pub fn all() -> [SettingsSection; 5] {
+    pub fn all() -> [SettingsSection; 6] {
         [
             Self::Appearance,
             Self::Clusters,
             Self::Terminal,
             Self::Logs,
             Self::Data,
+            Self::Updates,
         ]
     }
 }

@@ -8,7 +8,9 @@ use thiserror::Error;
 use crate::appearance::Appearance;
 use crate::cluster::ClusterId;
 use crate::navigation::ViewId;
-use crate::prefs::{Clamp, DataPrefs, LogPrefs, TerminalPrefs, UiPrefs, UserPrefs, lenient};
+use crate::prefs::{
+    Clamp, DataPrefs, LogPrefs, TerminalPrefs, UiPrefs, UpdatePrefs, UserPrefs, lenient,
+};
 
 /// Which namespaces a table shows.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -112,6 +114,9 @@ pub struct Settings {
     /// Settings window, Data section.
     #[serde(deserialize_with = "lenient")]
     pub data: DataPrefs,
+    /// Settings window, Updates section.
+    #[serde(deserialize_with = "lenient")]
+    pub updates: UpdatePrefs,
 }
 
 impl Settings {
@@ -131,6 +136,7 @@ impl Settings {
             terminal: self.terminal.clone(),
             logs: self.logs.clone(),
             data: self.data.clone(),
+            updates: self.updates.clone(),
         }
     }
 
@@ -143,6 +149,7 @@ impl Settings {
         self.terminal = prefs.terminal;
         self.logs = prefs.logs;
         self.data = prefs.data;
+        self.updates = prefs.updates;
     }
 
     /// Namespace filter to use when opening `cluster`: the saved explicit

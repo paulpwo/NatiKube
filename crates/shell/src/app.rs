@@ -57,6 +57,11 @@ pub struct ShellOptions {
     /// A non-blocking message about startup (for example a settings file that
     /// could not be read); shown in the status bar.
     pub startup_warning: Option<String>,
+    /// The running version, compared against the latest GitHub release.
+    pub app_version: &'static str,
+    /// `--fake-update <version>`: offer this version without any network
+    /// request (overrides `--demo` and the settings). Never persisted.
+    pub fake_update: Option<String>,
     /// Runs when the app quits (flushes queued settings writes).
     pub on_quit: Option<Arc<dyn Fn() + Send + Sync>>,
 }

@@ -19,6 +19,7 @@ mod shell_ops;
 mod shell_view;
 mod sidebar;
 pub mod state;
+mod update_ops;
 
 pub use app::{ShellOptions, run};
 pub use shell_view::ShellView;
