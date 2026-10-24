@@ -41,7 +41,7 @@ Four appearances, switchable live. Every screenshot below was taken with `--demo
 - **Port forwarding.** Start, list and stop forwards, and open them in the browser.
 - **Command palette.** `Ctrl/Cmd+K` jumps to any resource, view or command.
 - **Many clusters.** Reads every kubeconfig it finds, folds duplicates (including EKS alias and ARN twins) and imports the cluster list from Freelens.
-- **Alerts and notifications.** Pick the signals you care about per cluster (new pod, failing pod, cluster unreachable and more), see them in a bell with a local history, and optionally get operating system notifications. All off until you turn them on.
+- **Alerts and notifications.** Pick the signals you care about per cluster (new pod, failing pod, cluster unreachable and more), see them in a bell with a local history, get a short in-app toast when one fires, and optionally get operating system notifications and a sound. Nothing is watched until you turn a rule on.
 - **Four appearances and a Settings window**, all applied live and saved as plain JSON.
 
 ## Install
@@ -161,7 +161,13 @@ To keep the noise down, objects that are already in a bad state when monitoring 
 
 **Where the history lives.** In a SQLite file next to your settings: `notifications.sqlite` in the NatiKube config folder (`~/Library/Application Support/NatiKube/` on macOS, `%APPDATA%\NatiKube\` on Windows). By default it keeps 30 days and 5,000 rows; both are adjustable in Settings > Alerts.
 
+**In-app toasts.** When an alert fires, a card appears in the bottom right corner of the window with its severity, title, cluster and object. It goes away after a few seconds (hover it to keep it), at most three show at once, the cross dismisses it and a click opens the object like the bell does. Toasts do not need any system permission. They are on by default; **Settings > Alerts > In-app notifications** switches them off. They only appear for alerts you enabled a rule for.
+
+**Sound.** **Settings > Alerts > Sound** can play a system sound when alerts fire (off by default). Pick one of the system sounds (macOS: Glass, Ping, Submarine and the rest of the built-in set; Windows: the sound scheme aliases such as Notification or Asterisk), press **Preview** to hear it, and optionally restrict it to critical alerts. A batch of alerts makes one sound, and never more than one every 2 seconds.
+
 **OS notifications.** Settings > Alerts > OS notifications sends each new alert to the system notification center (macOS and Windows). Use **Send test notification** to check it works. If the switch is off, alerts only go to the history.
+
+**macOS permission.** On macOS, NatiKube uses the system notification API, so macOS asks for permission the first time you turn the switch on (or at startup if it is already on and you were never asked). The state is shown under the switch in Settings > Alerts. If you said no, **Open System Settings** takes you to Notifications. Notifications only work when NatiKube runs as the installed app (`NatiKube.app`), not as a bare binary; there the page says "Available when NatiKube runs as an installed app".
 
 **Privacy.** Nothing leaves your machine. Watching is read-only (list and watch), history and settings stay in local files, and there is no telemetry or account.
 

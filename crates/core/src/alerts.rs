@@ -2,8 +2,8 @@
 //! global OS-notification switch and history retention. Pure data; the
 //! evaluation lives in `natikube-alerts`.
 //!
-//! Everything defaults to off: nothing is monitored and no OS notification is
-//! sent until the user enables it. Parsing is tolerant per field, like the
+//! Nothing is monitored until the user turns a rule on, and no OS notification
+//! or sound happens until they enable it (in-app toasts are on by default). Parsing is tolerant per field, like the
 //! rest of the settings file.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -353,9 +353,51 @@ pub struct AlertsConfig {
     /// Repeats of the same alert inside this window are collapsed.
     #[serde(deserialize_with = "cooldown")]
     pub cooldown_secs: u32,
+    /// Show a toast inside the main window when an alert fires (default on;
+    /// alerts themselves stay opt-in per rule).
+    #[serde(deserialize_with = "toasts_default")]
+    pub in_app_toasts: bool,
+    /// Play a short system sound when alerts fire (default off).
+    #[serde(deserialize_with = "lenient")]
+    pub sound: bool,
+    /// With `sound`, only critical alerts make a sound (default off).
+    #[serde(deserialize_with = "lenient")]
+    pub sound_critical_only: bool,
+    /// One of [`SYSTEM_SOUNDS`](Self::SYSTEM_SOUNDS).
+    #[serde(deserialize_with = "sound_name")]
+    pub sound_name: String,
 }
 
 impl AlertsConfig {
+    /// System sounds offered in Settings. macOS plays them with `NSSound`;
+    /// Windows plays the sound aliases of the current scheme.
+    #[cfg(target_os = "windows")]
+    pub const SYSTEM_SOUNDS: &'static [&'static str] = &[
+        "SystemNotification",
+        "SystemAsterisk",
+        "SystemExclamation",
+        "SystemHand",
+        "SystemDefault",
+    ];
+    #[cfg(not(target_os = "windows"))]
+    pub const SYSTEM_SOUNDS: &'static [&'static str] = &[
+        "Glass",
+        "Ping",
+        "Submarine",
+        "Funk",
+        "Hero",
+        "Pop",
+        "Purr",
+        "Sosumi",
+        "Tink",
+        "Basso",
+        "Blow",
+        "Bottle",
+        "Frog",
+        "Morse",
+    ];
+    pub const DEFAULT_SOUND_NAME: &'static str = Self::SYSTEM_SOUNDS[0];
+
     pub const COOLDOWN_SECS: (u32, u32) = (10, 86_400);
     pub const DEFAULT_COOLDOWN_SECS: u32 = 300;
 
@@ -382,6 +424,9 @@ impl AlertsConfig {
         self.cooldown_secs = self
             .cooldown_secs
             .clamp(Self::COOLDOWN_SECS.0, Self::COOLDOWN_SECS.1);
+        if !Self::SYSTEM_SOUNDS.contains(&self.sound_name.as_str()) {
+            self.sound_name = Self::DEFAULT_SOUND_NAME.to_string();
+        }
     }
 }
 
@@ -406,6 +451,32 @@ fn cooldown<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
     u32_or(d, AlertsConfig::DEFAULT_COOLDOWN_SECS)
 }
 
+fn toasts_default<'de, D: serde::Deserializer<'de>>(d: D) -> Result<bool, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Maybe {
+        Value(bool),
+        Other(serde::de::IgnoredAny),
+    }
+    Ok(match Maybe::deserialize(d)? {
+        Maybe::Value(value) => value,
+        Maybe::Other(_) => true,
+    })
+}
+
+fn sound_name<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Maybe {
+        Value(String),
+        Other(serde::de::IgnoredAny),
+    }
+    Ok(match Maybe::deserialize(d)? {
+        Maybe::Value(value) if !value.trim().is_empty() => value,
+        _ => AlertsConfig::DEFAULT_SOUND_NAME.to_string(),
+    })
+}
+
 fn max_age_days<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
     u32_or(d, Retention::default().max_age_days)
 }
@@ -421,6 +492,10 @@ impl Default for AlertsConfig {
             os_notifications: false,
             retention: Retention::default(),
             cooldown_secs: Self::DEFAULT_COOLDOWN_SECS,
+            in_app_toasts: true,
+            sound: false,
+            sound_critical_only: false,
+            sound_name: Self::DEFAULT_SOUND_NAME.to_string(),
         }
     }
 }
@@ -442,6 +517,64 @@ mod tests {
                 max_rows: 5_000
             }
         );
+    }
+
+    #[test]
+    fn toasts_are_on_and_sound_is_off_by_default() {
+        let config = AlertsConfig::default();
+        assert!(config.in_app_toasts);
+        assert!(!config.sound);
+        assert!(!config.sound_critical_only);
+        assert_eq!(config.sound_name, AlertsConfig::DEFAULT_SOUND_NAME);
+        assert!(AlertsConfig::SYSTEM_SOUNDS.contains(&AlertsConfig::DEFAULT_SOUND_NAME));
+        if cfg!(target_os = "windows") {
+            assert_eq!(config.sound_name, "SystemNotification");
+        } else {
+            assert_eq!(config.sound_name, "Glass");
+        }
+    }
+
+    #[test]
+    fn old_settings_files_get_the_new_defaults() {
+        let config: AlertsConfig = serde_json::from_str(r#"{ "os_notifications": true }"#).unwrap();
+        assert!(config.os_notifications);
+        assert!(config.in_app_toasts);
+        assert!(!config.sound);
+        assert_eq!(config.sound_name, AlertsConfig::DEFAULT_SOUND_NAME);
+    }
+
+    #[test]
+    fn notification_fields_load_tolerantly() {
+        let config: AlertsConfig = serde_json::from_str(
+            r#"{ "in_app_toasts": "no", "sound": 3, "sound_critical_only": null, "sound_name": 7 }"#,
+        )
+        .unwrap();
+        assert!(
+            config.in_app_toasts,
+            "a bad value falls back to the default"
+        );
+        assert!(!config.sound);
+        assert!(!config.sound_critical_only);
+        assert_eq!(config.sound_name, AlertsConfig::DEFAULT_SOUND_NAME);
+        let off: AlertsConfig = serde_json::from_str(
+            r#"{ "in_app_toasts": false, "sound": true, "sound_critical_only": true, "sound_name": "Ping" }"#,
+        )
+        .unwrap();
+        assert!(!off.in_app_toasts && off.sound && off.sound_critical_only);
+        assert_eq!(off.sound_name, "Ping");
+    }
+
+    #[test]
+    fn clamp_replaces_an_unknown_sound_name_with_the_default() {
+        let mut config = AlertsConfig {
+            sound_name: "NoSuchSound".into(),
+            ..AlertsConfig::default()
+        };
+        config.clamp_in_place();
+        assert_eq!(config.sound_name, AlertsConfig::DEFAULT_SOUND_NAME);
+        config.sound_name = AlertsConfig::SYSTEM_SOUNDS[1].to_string();
+        config.clamp_in_place();
+        assert_eq!(config.sound_name, AlertsConfig::SYSTEM_SOUNDS[1]);
     }
 
     #[test]

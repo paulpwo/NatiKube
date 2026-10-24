@@ -89,6 +89,22 @@ fn main() -> ExitCode {
         }
     });
 
+    if args.request_notification_permission {
+        use natikube_alerts::OsNotifier as _;
+        let notifier = natikube_alerts::adapters::notify::NativeNotifier::new();
+        println!("permission before: {:?}", notifier.permission());
+        println!(
+            "permission after request: {:?}",
+            notifier.request_permission()
+        );
+        println!("permission now: {:?}", notifier.permission());
+        return ExitCode::SUCCESS;
+    }
+
+    if let Some(name) = &args.play_sound {
+        return play_sound_check(name);
+    }
+
     if args.dump_clusters {
         return dump_clusters(&catalog);
     }
@@ -152,6 +168,27 @@ fn main() -> ExitCode {
         background.flush();
     }
     ExitCode::SUCCESS
+}
+
+/// `--play-sound`: dev check of the system sound adapter. `play` must return
+/// at once; the sound itself runs for about a second.
+fn play_sound_check(name: &str) -> ExitCode {
+    use natikube_alerts::SoundPlayer as _;
+    let player = natikube_alerts::adapters::sound::SystemSoundPlayer::default();
+    let started = std::time::Instant::now();
+    let queued = player.play(name);
+    println!(
+        "play({name}) returned in {:?}: {queued:?}",
+        started.elapsed()
+    );
+    std::thread::sleep(Duration::from_millis(2500));
+    #[cfg(target_os = "macos")]
+    println!("worker result: {:?}", player.last_result());
+    if queued.is_ok() {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
+    }
 }
 
 fn cluster_for(

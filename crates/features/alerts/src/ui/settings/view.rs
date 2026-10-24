@@ -9,7 +9,8 @@ use super::edit::{
     AlertsEdit, COUNT_RANGE, DURATION_SECS_RANGE, WINDOW_SECS_RANGE, apply_edit, duration_step,
     format_duration, format_list, namespaces_text, step,
 };
-use crate::domain::{Severity, rule_severity};
+use crate::domain::{PermissionState, rule_severity};
+use crate::ui::severity_color;
 
 /// A cluster the user can configure, as plain data.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -24,6 +25,10 @@ pub enum AlertsSettingsEvent {
     /// The configuration changed; the shell clamps, persists and applies it.
     ConfigChanged(Box<AlertsConfig>),
     SendTestNotification,
+    /// "Open System Settings" next to a denied permission.
+    OpenNotificationSettings,
+    /// "Preview" next to the sound picker: play this system sound once.
+    PreviewSound(String),
     ClearHistory,
 }
 
@@ -32,6 +37,8 @@ pub struct AlertsSettingsSection {
     config: AlertsConfig,
     clusters: Vec<AlertClusterEntry>,
     selected: usize,
+    /// What the OS lets NatiKube do; the shell keeps it current.
+    permission: PermissionState,
     namespaces: Entity<InputState>,
     reasons: Entity<InputState>,
     /// Bumped on every typed edit so only the last one is applied.
@@ -68,6 +75,7 @@ impl AlertsSettingsSection {
             config,
             clusters,
             selected: 0,
+            permission: PermissionState::NotApplicable,
             namespaces,
             reasons,
             typing_generation: 0,
@@ -93,6 +101,18 @@ impl AlertsSettingsSection {
             self.load_inputs(window, cx);
             cx.notify();
         }
+    }
+
+    /// The OS notification permission changed (or was just read).
+    pub fn set_permission(&mut self, permission: PermissionState, cx: &mut Context<Self>) {
+        if self.permission != permission {
+            self.permission = permission;
+            cx.notify();
+        }
+    }
+
+    pub fn permission(&self) -> &PermissionState {
+        &self.permission
     }
 
     /// The cluster catalog changed. The selection stays on the same cluster
@@ -285,14 +305,6 @@ fn heading(title: &'static str, p: Palette) -> Div {
         .child(title)
 }
 
-fn severity_color(severity: Severity, p: Palette) -> Hsla {
-    match severity {
-        Severity::Info => p.accent,
-        Severity::Warning => p.warning,
-        Severity::Critical => p.error,
-    }
-}
-
 impl AlertsSettingsSection {
     fn stepper(
         &self,
@@ -378,6 +390,40 @@ impl AlertsSettingsSection {
                     })
                     .child(entry.name.clone())
             }))
+    }
+
+    /// The system sounds as selectable chips (clicking one only selects it;
+    /// "Preview" plays it).
+    fn render_sound_choices(&self, cx: &mut Context<Self>) -> Div {
+        let tokens = cx.tokens().clone();
+        let (p, radius) = (tokens.palette, tokens.radii.sm);
+        h_flex().w_full().gap_1().flex_wrap().py_2().children(
+            AlertsConfig::SYSTEM_SOUNDS
+                .iter()
+                .enumerate()
+                .map(|(index, name)| {
+                    let selected = self.config.sound_name == *name;
+                    div()
+                        .id(("alerts-sound-choice", index))
+                        .h(px(26.))
+                        .px_3()
+                        .flex()
+                        .items_center()
+                        .rounded(radius)
+                        .cursor_pointer()
+                        .text_sm()
+                        .when(selected, |d| {
+                            d.bg(p.sidebar_active).text_color(p.sidebar_active_text)
+                        })
+                        .when(!selected, |d| {
+                            d.text_color(p.text).hover(move |s| s.bg(p.control_hover))
+                        })
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            this.edit(AlertsEdit::SoundName((*name).to_string()), cx)
+                        }))
+                        .child(*name)
+                }),
+        )
     }
 
     fn render_rules(&self, entry: &AlertClusterEntry, cx: &mut Context<Self>) -> Div {
@@ -525,7 +571,99 @@ impl Render for AlertsSettingsSection {
         }
 
         let os_on = self.config.os_notifications;
+        let permission_row = self.permission.status_text().map(|line| {
+            let open = self.permission.offers_system_settings().then(|| {
+                button(
+                    "alerts-open-system-settings",
+                    "Open System Settings",
+                    p,
+                    radius,
+                    cx.listener(|_, _, _, cx| {
+                        cx.emit(AlertsSettingsEvent::OpenNotificationSettings)
+                    }),
+                )
+            });
+            row(
+                "System permission",
+                Some(line.into()),
+                div().when_some(open, |d, button| d.child(button)),
+                p,
+            )
+        });
+        let toasts_on = self.config.in_app_toasts;
+        let sound_on = self.config.sound;
+        let critical_only = self.config.sound_critical_only;
+        let sound_name = self.config.sound_name.clone();
+        let preview_name = sound_name.clone();
         body = body
+            .child(heading("In-app notifications", p))
+            .child(row(
+                "Show toasts in the window",
+                Some(
+                    "On by default. A short card in the corner of the window when an alert \
+                     fires; click it to open the object. Alerts still need a rule turned on."
+                        .into(),
+                ),
+                switch(
+                    "alerts-toasts",
+                    toasts_on,
+                    p,
+                    cx.listener(move |this, _, _, cx| {
+                        this.edit(AlertsEdit::InAppToasts(!toasts_on), cx)
+                    }),
+                ),
+                p,
+            ))
+            .child(heading("Sound", p))
+            .child(row(
+                "Play a sound",
+                Some(
+                    "Off by default. Plays once per batch of alerts, and never more than once \
+                     every 2 seconds."
+                        .into(),
+                ),
+                switch(
+                    "alerts-sound",
+                    sound_on,
+                    p,
+                    cx.listener(move |this, _, _, cx| this.edit(AlertsEdit::Sound(!sound_on), cx)),
+                ),
+                p,
+            ))
+            .child(
+                div().w_full().when(!sound_on, |d| d.opacity(0.55)).child(
+                    v_flex()
+                        .w_full()
+                        .child(row(
+                            "Only critical alerts",
+                            Some("Stay silent for information and warnings.".into()),
+                            switch(
+                                "alerts-sound-critical",
+                                critical_only,
+                                p,
+                                cx.listener(move |this, _, _, cx| {
+                                    this.edit(AlertsEdit::SoundCriticalOnly(!critical_only), cx)
+                                }),
+                            ),
+                            p,
+                        ))
+                        .child(row(
+                            "Sound",
+                            Some(format!("Selected: {sound_name}").into()),
+                            button(
+                                "alerts-sound-preview",
+                                "Preview",
+                                p,
+                                radius,
+                                cx.listener(move |_, _, _, cx| {
+                                    cx.emit(AlertsSettingsEvent::PreviewSound(preview_name.clone()))
+                                }),
+                            ),
+                            p,
+                        ))
+                        .child(self.render_sound_choices(cx)),
+                ),
+            )
             .child(heading("Operating system notifications", p))
             .child(row(
                 "Show system notifications",
@@ -544,6 +682,7 @@ impl Render for AlertsSettingsSection {
                 ),
                 p,
             ))
+            .children(permission_row)
             .child(row(
                 "Test notification",
                 Some("Sends one system notification now, even while the switch is off.".into()),

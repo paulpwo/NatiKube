@@ -105,8 +105,14 @@ smallvec = "1"
 
 # Runtime Dock icon (natikube-shell, macOS only)
 objc2 = "0.6"
-objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSImage", "NSResponder"] }
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSData"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSImage", "NSResponder", "NSSound"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSData", "NSBundle", "NSError", "NSString", "NSObject"] }
+# macOS notifications (natikube-alerts): UNUserNotificationCenter. Same
+# versions GPUI already pulls in; no second major.
+objc2-user-notifications = { version = "0.3", default-features = false, features = ["std", "block2", "UNUserNotificationCenter", "UNNotification", "UNNotificationContent", "UNNotificationRequest", "UNNotificationSettings", "UNNotificationSound"] }
+block2 = "0.6"
+# Windows alert sounds (natikube-alerts): PlaySoundW. Same 0.61 GPUI already pulls in.
+windows-sys = { version = "0.61", default-features = false, features = ["Win32_Foundation", "Win32_Media_Audio"] }
 
 # Windows only: embeds the exe icon and version info (crates/app/build.rs)
 embed-resource = "3"

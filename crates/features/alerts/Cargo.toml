@@ -22,7 +22,17 @@ thiserror = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }
 rusqlite = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
 notify-rust = { workspace = true }
+windows-sys = { workspace = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = { workspace = true }
+objc2-app-kit = { workspace = true }
+objc2-foundation = { workspace = true }
+objc2-user-notifications = { workspace = true }
+block2 = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

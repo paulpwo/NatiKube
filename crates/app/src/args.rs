@@ -51,6 +51,17 @@ pub struct Args {
     /// `--fake-update <version>` (hidden): show the update modal for this
     /// version without contacting GitHub.
     pub fake_update: Option<String>,
+    /// `--request-notification-permission` (hidden): print the OS notification
+    /// permission, ask for it, print the answer and exit. Dev check for the
+    /// bundled app.
+    pub request_notification_permission: bool,
+    /// `--fake-live-alerts <N>` (hidden, with `--fake-alerts`): fire N sample
+    /// alerts through the real pipeline after startup, so the toasts and the
+    /// sound can be reviewed without a cluster.
+    pub fake_live_alerts: Option<usize>,
+    /// `--play-sound <NAME>` (hidden): play that system sound once, print how
+    /// long the call took and whether it was playing, then exit.
+    pub play_sound: Option<String>,
 }
 
 impl Args {
@@ -119,6 +130,17 @@ impl Args {
                     args.fake_alerts = Some(count);
                 }
                 "--dump-clusters" => args.dump_clusters = true,
+                "--request-notification-permission" => args.request_notification_permission = true,
+                "--fake-live-alerts" => {
+                    let value = raw.next().ok_or("--fake-live-alerts needs a value")?;
+                    let count = value.parse().map_err(|_| {
+                        format!("--fake-live-alerts expects a number, got {value:?}")
+                    })?;
+                    args.fake_live_alerts = Some(count);
+                }
+                "--play-sound" => {
+                    args.play_sound = Some(raw.next().ok_or("--play-sound needs a sound name")?);
+                }
                 "-h" | "--help" => return Ok(None),
                 other => return Err(format!("unknown argument {other:?}")),
             }
@@ -228,6 +250,31 @@ mod tests {
         assert_eq!(parse(&[]).unwrap().unwrap().fake_alerts, None);
         assert!(parse(&["--fake-alerts"]).is_err());
         assert!(parse(&["--fake-alerts", "lots"]).is_err());
+    }
+
+    #[test]
+    fn parses_the_hidden_notification_permission_flag() {
+        assert!(
+            parse(&["--request-notification-permission"])
+                .unwrap()
+                .unwrap()
+                .request_notification_permission
+        );
+        assert!(!parse(&[]).unwrap().unwrap().request_notification_permission);
+    }
+
+    #[test]
+    fn parses_the_hidden_toast_and_sound_flags() {
+        let args = parse(&["--demo", "--fake-alerts", "5", "--fake-live-alerts", "4"])
+            .unwrap()
+            .unwrap();
+        assert_eq!(args.fake_live_alerts, Some(4));
+        assert_eq!(parse(&[]).unwrap().unwrap().fake_live_alerts, None);
+        assert!(parse(&["--fake-live-alerts"]).is_err());
+        assert!(parse(&["--fake-live-alerts", "many"]).is_err());
+        let args = parse(&["--play-sound", "Ping"]).unwrap().unwrap();
+        assert_eq!(args.play_sound.as_deref(), Some("Ping"));
+        assert!(parse(&["--play-sound"]).is_err());
     }
 
     #[test]

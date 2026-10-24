@@ -33,6 +33,10 @@ pub struct AlertsOptions {
     /// Start the monitor for clusters with enabled rules. Off in the demo
     /// and with fake data, where nothing may reach the network.
     pub monitor: bool,
+    /// Dev only (`--fake-live-alerts`): fire this many sample alerts through
+    /// the real pipeline a moment after startup, to see toasts and hear the
+    /// sound. Never set outside a `--fake-alerts` run.
+    pub live_fake: usize,
 }
 
 /// Everything the shell needs from the binary.

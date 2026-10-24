@@ -2,16 +2,30 @@
 //! [`OsNotifier`](crate::domain::OsNotifier) for macOS and Windows. Nothing is
 //! sent unless the user enabled OS notifications (the dispatcher checks), and
 //! [`NoopNotifier`] is the silent implementation for tests and other platforms.
+//!
+//! macOS goes through `UNUserNotificationCenter` (`macos.rs`), which needs the
+//! user's permission and a `.app` bundle; Windows keeps `notify-rust` toasts.
 
-use std::path::Path;
 use std::sync::Arc;
 
-use crate::domain::{Alert, NotifyError, OsNotifier};
+use crate::domain::{Alert, NotifyError, OsNotifier, PermissionState};
 
-/// Bundle identifier of the packaged macOS app (`scripts/bundle.sh`).
-pub const MACOS_BUNDLE_ID: &str = "dev.natikube.app";
+#[cfg(target_os = "macos")]
+mod macos;
+#[cfg(target_os = "macos")]
+pub use macos::open_notification_settings;
 
+#[cfg(target_os = "windows")]
 const APP_NAME: &str = "NatiKube";
+
+/// Opens the system notification settings. Only macOS has such a pane to
+/// point at.
+#[cfg(not(target_os = "macos"))]
+pub fn open_notification_settings() -> Result<(), NotifyError> {
+    Err(NotifyError(
+        "System notification settings are only opened on macOS".into(),
+    ))
+}
 
 /// Title and body of one notification.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -50,27 +64,17 @@ pub fn test_content() -> NotificationContent {
     }
 }
 
-/// Whether `exe` runs from inside a macOS `.app` bundle. Only then the
-/// notification may be attributed to [`MACOS_BUNDLE_ID`]; an unbundled binary
-/// has no identity of its own on macOS.
-pub fn is_inside_app_bundle(exe: &Path) -> bool {
-    let Some(macos_dir) = exe.parent() else {
-        return false;
-    };
-    let contents = macos_dir.parent();
-    macos_dir.file_name().is_some_and(|n| n == "MacOS")
-        && contents
-            .and_then(Path::file_name)
-            .is_some_and(|n| n == "Contents")
-        && contents
-            .and_then(Path::parent)
-            .and_then(Path::extension)
-            .is_some_and(|ext| ext == "app")
-}
-
 /// The part of the platform that actually shows a notification.
 pub trait NotificationSink: Send + Sync {
     fn show(&self, content: &NotificationContent) -> Result<(), NotifyError>;
+    /// Current permission; see [`OsNotifier::permission`].
+    fn permission(&self) -> PermissionState {
+        PermissionState::NotApplicable
+    }
+    /// See [`OsNotifier::request_permission`].
+    fn request_permission(&self) -> PermissionState {
+        self.permission()
+    }
 }
 
 /// [`OsNotifier`] that formats alerts and hands them to a sink (the platform
@@ -103,6 +107,14 @@ impl OsNotifier for NativeNotifier {
     fn send_test(&self) -> Result<(), NotifyError> {
         self.sink.show(&test_content())
     }
+
+    fn permission(&self) -> PermissionState {
+        self.sink.permission()
+    }
+
+    fn request_permission(&self) -> PermissionState {
+        self.sink.request_permission()
+    }
 }
 
 /// Never shows anything.
@@ -119,29 +131,20 @@ impl OsNotifier for NoopNotifier {
     }
 }
 
-#[cfg(any(target_os = "macos", target_os = "windows"))]
+#[cfg(target_os = "macos")]
+use macos::UserNotificationSink as PlatformSink;
+
+#[cfg(target_os = "windows")]
 struct PlatformSink;
 
-#[cfg(any(target_os = "macos", target_os = "windows"))]
+#[cfg(target_os = "windows")]
 impl PlatformSink {
     fn new() -> Self {
-        #[cfg(target_os = "macos")]
-        {
-            // `set_application` works once per process. Inside the bundle the
-            // notification belongs to NatiKube; unbundled, the crate falls
-            // back to a stock system identity, which is fine for development.
-            let bundled = std::env::current_exe()
-                .map(|exe| is_inside_app_bundle(&exe))
-                .unwrap_or(false);
-            if bundled && let Err(err) = notify_rust::set_application(MACOS_BUNDLE_ID) {
-                tracing::warn!("notifications: cannot set bundle id: {err}");
-            }
-        }
         Self
     }
 }
 
-#[cfg(any(target_os = "macos", target_os = "windows"))]
+#[cfg(target_os = "windows")]
 impl NotificationSink for PlatformSink {
     fn show(&self, content: &NotificationContent) -> Result<(), NotifyError> {
         // Fire and forget: `show` does not wait for the user to act on it.
@@ -170,14 +173,13 @@ impl PlatformSink {
 impl NotificationSink for PlatformSink {
     fn show(&self, _content: &NotificationContent) -> Result<(), NotifyError> {
         Err(NotifyError(format!(
-            "{APP_NAME}: OS notifications are not supported on this platform yet"
+            "NatiKube: OS notifications are not supported on this platform yet"
         )))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
     use std::sync::Mutex;
 
     use natikube_core::{ClusterId, RuleKind};
@@ -253,13 +255,27 @@ mod tests {
     }
 
     #[test]
-    fn detects_the_app_bundle_by_path() {
-        assert!(is_inside_app_bundle(&PathBuf::from(
-            "/Applications/NatiKube.app/Contents/MacOS/natikube"
-        )));
-        assert!(!is_inside_app_bundle(&PathBuf::from(
-            "/Users/u/work/NatiKube/target/debug/natikube"
-        )));
+    fn permission_defaults_to_not_applicable_and_follows_the_sink() {
+        let plain = NativeNotifier::with_sink(Arc::new(Recorder::default()));
+        assert_eq!(plain.permission(), PermissionState::NotApplicable);
+        assert_eq!(plain.request_permission(), PermissionState::NotApplicable);
+        assert_eq!(NoopNotifier.permission(), PermissionState::NotApplicable);
+
+        struct Asking;
+        impl NotificationSink for Asking {
+            fn show(&self, _: &NotificationContent) -> Result<(), NotifyError> {
+                Ok(())
+            }
+            fn permission(&self) -> PermissionState {
+                PermissionState::NotDetermined
+            }
+            fn request_permission(&self) -> PermissionState {
+                PermissionState::Allowed
+            }
+        }
+        let notifier = NativeNotifier::with_sink(Arc::new(Asking));
+        assert_eq!(notifier.permission(), PermissionState::NotDetermined);
+        assert_eq!(notifier.request_permission(), PermissionState::Allowed);
     }
 
     /// Manual check against the real OS: `cargo test -p natikube-alerts

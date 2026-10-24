@@ -3,7 +3,8 @@ use std::sync::{Arc, Mutex};
 
 use natikube_core::Retention;
 
-use super::model::{Alert, Timestamp};
+use super::model::{Alert, StoredAlert, Timestamp};
+use super::permission::PermissionState;
 use super::ports::{AlertStore, OsNotifier};
 
 /// Where fired alerts go: always the history, and the OS notifier only while
@@ -14,7 +15,11 @@ pub struct AlertDispatcher {
     os_enabled: AtomicBool,
     retention: Mutex<Retention>,
     on_change: Arc<dyn Fn() + Send + Sync>,
+    on_fired: Mutex<Option<FiredHook>>,
 }
+
+/// Receives each batch of newly stored alerts (toasts and sound).
+pub type FiredHook = Arc<dyn Fn(&[StoredAlert]) + Send + Sync>;
 
 impl AlertDispatcher {
     /// `on_change` runs (on the caller's thread) after new rows were stored;
@@ -30,6 +35,16 @@ impl AlertDispatcher {
             os_enabled: AtomicBool::new(false),
             retention: Mutex::new(Retention::default()),
             on_change,
+            on_fired: Mutex::new(None),
+        }
+    }
+
+    /// Registers the hook that gets every batch of newly stored alerts, with
+    /// the history row of each, on the caller's thread (a monitor thread):
+    /// post to a channel, never do UI work in it.
+    pub fn set_on_fired(&self, hook: FiredHook) {
+        if let Ok(mut guard) = self.on_fired.lock() {
+            *guard = Some(hook);
         }
     }
 
@@ -53,9 +68,17 @@ impl AlertDispatcher {
     /// alerts were stored.
     pub fn dispatch(&self, alerts: &[Alert], now: Timestamp) -> usize {
         let mut stored = 0;
+        let mut fired = Vec::new();
         for alert in alerts {
             match self.store.insert(alert) {
-                Ok(_) => stored += 1,
+                Ok(row_id) => {
+                    stored += 1;
+                    fired.push(StoredAlert {
+                        row_id,
+                        alert: alert.clone(),
+                        read: false,
+                    });
+                }
                 Err(error) => tracing::warn!(%error, "could not store alert"),
             }
             if self.os_enabled()
@@ -70,12 +93,24 @@ impl AlertDispatcher {
                 tracing::warn!(%error, "could not prune alert history");
             }
             (self.on_change)();
+            let hook = self.on_fired.lock().ok().and_then(|guard| guard.clone());
+            if let Some(hook) = hook {
+                hook(&fired);
+            }
         }
         stored
     }
 
     pub fn store(&self) -> &Arc<dyn AlertStore> {
         &self.store
+    }
+
+    pub fn permission(&self) -> PermissionState {
+        self.notifier.permission()
+    }
+
+    pub fn request_permission(&self) -> PermissionState {
+        self.notifier.request_permission()
     }
 
     /// Sends the test notification regardless of the switch (the user asked
@@ -254,6 +289,42 @@ mod tests {
         f.store.fail_insert.store(true, Ordering::Relaxed);
         assert_eq!(f.dispatcher.dispatch(&[alert(1)], 1), 0);
         assert_eq!(f.changes.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn the_fired_hook_gets_the_stored_rows_of_each_batch() {
+        let f = fixture();
+        type Seen = Vec<Vec<(i64, String)>>;
+        let seen: Arc<Mutex<Seen>> = Arc::default();
+        let sink = Arc::clone(&seen);
+        f.dispatcher
+            .set_on_fired(Arc::new(move |rows: &[StoredAlert]| {
+                sink.lock().unwrap().push(
+                    rows.iter()
+                        .map(|r| (r.row_id, r.alert.id.clone()))
+                        .collect(),
+                );
+            }));
+        f.dispatcher.dispatch(&[alert(1), alert(2)], 10);
+        f.dispatcher.dispatch(&[alert(3)], 11);
+        let seen = seen.lock().unwrap();
+        assert_eq!(seen.len(), 2, "one call per batch");
+        assert_eq!(seen[0], vec![(1, "id-1".into()), (2, "id-2".into())]);
+        assert_eq!(seen[1], vec![(3, "id-3".into())]);
+    }
+
+    #[test]
+    fn alerts_that_could_not_be_stored_are_not_announced() {
+        let f = fixture();
+        let calls = Arc::new(AtomicUsize::new(0));
+        let counter = Arc::clone(&calls);
+        f.dispatcher
+            .set_on_fired(Arc::new(move |_: &[StoredAlert]| {
+                counter.fetch_add(1, Ordering::Relaxed);
+            }));
+        f.store.fail_insert.store(true, Ordering::Relaxed);
+        f.dispatcher.dispatch(&[alert(1)], 1);
+        assert_eq!(calls.load(Ordering::Relaxed), 0);
     }
 
     #[test]

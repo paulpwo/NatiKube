@@ -8,7 +8,8 @@ use gpui_kit::*;
 use natikube_ui_kit::ActiveTokens as _;
 
 use super::view_model::{BellTarget, PAGE_SIZE, badge_text, group_by_day, relative_time, subject};
-use crate::domain::{AlertStore, Severity, StoredAlert, Timestamp};
+use crate::domain::{AlertStore, StoredAlert, Timestamp};
+use crate::ui::severity_color;
 
 const BELL_SIZE: f32 = 28.0;
 const PANEL_WIDTH: f32 = 400.0;
@@ -505,11 +506,7 @@ impl AlertBell {
         let item = &self.items[ix];
         let alert = &item.alert;
         let unread = !item.read;
-        let dot = match alert.severity {
-            Severity::Info => p.accent,
-            Severity::Warning => p.warning,
-            Severity::Critical => p.error,
-        };
+        let dot = severity_color(alert.severity, p);
         let place = {
             let cluster = alert.cluster.context_name().to_string();
             match subject(alert) {

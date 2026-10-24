@@ -191,6 +191,7 @@ impl ShellView {
         };
         this.error = this.options.startup_warning.clone().map(SharedString::from);
         this.apply_alerts();
+        this.refresh_notification_permission(true, cx);
         if this.options.demo {
             // Every demo cluster shows as connected in the rail: there is
             // nothing to reach.
@@ -313,6 +314,8 @@ impl ShellView {
             AppCommand::OpenAlertObject(target) => self.open_alert_object(target, window, cx),
             AppCommand::AlertsConfigChanged(config) => self.apply_alerts_config(*config, cx),
             AppCommand::SendTestNotification => self.send_test_notification(cx),
+            AppCommand::OpenNotificationSettings => self.open_notification_settings(cx),
+            AppCommand::PreviewAlertSound(name) => self.preview_alert_sound(&name, cx),
             AppCommand::ClearAlertHistory => self.clear_alert_history(cx),
         }
     }
@@ -848,6 +851,7 @@ impl Render for ShellView {
             .relative()
             .size_full()
             .child(body)
+            .child(self.alerts.toasts.clone())
             .child(self.palette.clone())
             .child(self.update_modal.clone())
     }
