@@ -18,6 +18,7 @@ use natikube_resources::{LoadState, ResourcesView};
 use natikube_terminal::TerminalView;
 use natikube_ui_kit::{ActiveTokens as _, empty_state, error_state};
 
+use crate::alerts_ops::AlertsRuntime;
 use crate::app::ShellOptions;
 use crate::dock::DockTab;
 use crate::state::{DockState, NavState};
@@ -54,6 +55,11 @@ pub struct ShellView {
     pub(crate) _dialog: Option<Task<()>>,
     pub(crate) _import: Option<Task<()>>,
     pub(crate) _reload: Option<Task<()>>,
+    pub(crate) alerts: AlertsRuntime,
+    /// An alert's object waiting for its cluster's session to open.
+    pub(crate) pending_alert_open: Option<natikube_core::ResourceRef>,
+    pub(crate) alerts_section: Option<Entity<natikube_alerts::ui::settings::AlertsSettingsSection>>,
+    pub(crate) _alerts_section_subscription: Option<Subscription>,
     pub(crate) settings_window: Option<(AnyWindowHandle, Entity<natikube_settings::SettingsView>)>,
     pub(crate) _settings_subscription: Option<Subscription>,
     _static_subscriptions: Vec<Subscription>,
@@ -137,6 +143,7 @@ impl ShellView {
             })
         });
 
+        let alerts = AlertsRuntime::new(&options, window, cx);
         let mut this = Self {
             options,
             settings,
@@ -158,6 +165,10 @@ impl ShellView {
             _dialog: None,
             _import: None,
             _reload: None,
+            alerts,
+            pending_alert_open: None,
+            alerts_section: None,
+            _alerts_section_subscription: None,
             settings_window: None,
             _settings_subscription: None,
             _static_subscriptions: subscriptions,
@@ -166,6 +177,7 @@ impl ShellView {
             _measure_timeout: measure_timeout,
         };
         this.error = this.options.startup_warning.clone().map(SharedString::from);
+        this.apply_alerts();
         if this.options.demo {
             // Every demo cluster shows as connected in the rail: there is
             // nothing to reach.
@@ -283,6 +295,12 @@ impl ShellView {
             AppCommand::OpenSettings => self.open_settings(window, cx),
             AppCommand::SettingsChanged(prefs) => self.apply_user_prefs(*prefs, window, cx),
             AppCommand::RemoveKubeconfig(path) => self.remove_kubeconfig(path, window, cx),
+            AppCommand::AlertsChanged => self.refresh_bells(cx),
+            AppCommand::OpenAlerts => self.open_alert_panel(cx),
+            AppCommand::OpenAlertObject(target) => self.open_alert_object(target, window, cx),
+            AppCommand::AlertsConfigChanged(config) => self.apply_alerts_config(*config, cx),
+            AppCommand::SendTestNotification => self.send_test_notification(cx),
+            AppCommand::ClearAlertHistory => self.clear_alert_history(cx),
         }
     }
 
@@ -494,6 +512,7 @@ impl ShellView {
             detail,
             _subscriptions: subscriptions,
         });
+        self.open_pending_alert_object(window, cx);
         cx.notify();
     }
 
@@ -561,11 +580,10 @@ impl ShellView {
 
     // ----- rendering -------------------------------------------------------
 
-    fn render_top_tabs(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+    /// The Standard tab strip. It is always drawn: the notifications bell
+    /// lives at its right end, even when there are no tabs.
+    fn render_top_tabs(&self, cx: &mut Context<Self>) -> AnyElement {
         let tabs = self.nav.tabs();
-        if tabs.is_empty() {
-            return None;
-        }
         let theme = cx.theme();
         let current = self.nav.view().clone();
         let items: Vec<_> = tabs
@@ -601,19 +619,25 @@ impl ShellView {
                     .child(entry.label.clone())
             })
             .collect();
-        Some(
-            h_flex()
-                .id("top-tabs")
-                .w_full()
-                .h_10()
-                .flex_none()
-                .overflow_x_scroll()
-                .bg(theme.sidebar)
-                .border_b_1()
-                .border_color(theme.border)
-                .children(items)
-                .into_any_element(),
-        )
+        h_flex()
+            .w_full()
+            .h_10()
+            .flex_none()
+            .items_center()
+            .bg(theme.sidebar)
+            .border_b_1()
+            .border_color(theme.border)
+            .child(
+                h_flex()
+                    .id("top-tabs")
+                    .flex_1()
+                    .min_w_0()
+                    .h_full()
+                    .overflow_x_scroll()
+                    .children(items),
+            )
+            .child(div().flex_none().px_2().child(self.alerts.bell.clone()))
+            .into_any_element()
     }
 
     /// The main area. With `inspector` (Native) the detail panel is a fixed
@@ -777,7 +801,7 @@ impl ShellView {
                     .flex_1()
                     .min_w_0()
                     .h_full()
-                    .children(tabs)
+                    .child(tabs)
                     .child(div().flex_1().min_h_0().child(content))
                     .child(self.render_status_bar(cx)),
             )

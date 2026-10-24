@@ -41,6 +41,7 @@ Four appearances, switchable live. Every screenshot below was taken with `--demo
 - **Port forwarding.** Start, list and stop forwards, and open them in the browser.
 - **Command palette.** `Ctrl/Cmd+K` jumps to any resource, view or command.
 - **Many clusters.** Reads every kubeconfig it finds, folds duplicates (including EKS alias and ARN twins) and imports the cluster list from Freelens.
+- **Alerts and notifications.** Pick the signals you care about per cluster (new pod, failing pod, cluster unreachable and more), see them in a bell with a local history, and optionally get operating system notifications. All off until you turn them on.
 - **Four appearances and a Settings window**, all applied live and saved as plain JSON.
 
 ## Install
@@ -119,6 +120,7 @@ cargo test --workspace
 | --- | --- |
 | `Cmd+K` (`Ctrl+K` on Windows) | Command palette |
 | `Cmd+,` (`Ctrl+,` on Windows) | Settings |
+| `Cmd+Shift+N` (`Ctrl+Shift+N` on Windows) | Notifications (opens the bell panel) |
 | `Cmd+M` (`Ctrl+M` on Windows) | Minimize |
 | `Cmd+Q` (`Ctrl+Q` on Windows) | Quit |
 
@@ -129,6 +131,33 @@ In terminals, copy and paste are `Cmd+C` / `Cmd+V` on macOS and `Ctrl+Shift+C` /
 NatiKube reads every kubeconfig in `~/.kube/` (top-level files), `$KUBECONFIG` and any files or folders you add in Settings > Clusters. Identical contexts (same server, user and namespace) are folded into one entry, preferring `~/.kube/config`, then `$KUBECONFIG` order, then the other files. EKS contexts show their short cluster name instead of the ARN. **Import from Freelens** adds the kubeconfig paths from Freelens' cluster store. On Windows the folder is `%USERPROFILE%\.kube`.
 
 Settings live in `~/Library/Application Support/NatiKube/settings.json` on macOS and `%APPDATA%\NatiKube\settings.json` on Windows. A file with a syntax error is kept as a `.bak` and never overwritten.
+
+## Alerts and notifications
+
+NatiKube can watch clusters for the things you choose and keep a history of what it saw. **Everything is off by default**: until you enable a rule in Settings > Alerts, no watcher starts for alerts and nothing is recorded. OS notifications are a separate opt-in switch, also off by default.
+
+**Turning it on.** Open Settings > Alerts, pick a cluster, and switch on the rules you want for it. Only clusters with at least one enabled rule are watched, and only while NatiKube is open. Each rule can have a namespace filter, and some have parameters.
+
+| Rule | Fires when |
+| --- | --- |
+| New pod | A pod appears after monitoring started. Pods that already existed never fire it. |
+| Pod failing | A container enters CrashLoopBackOff, Error, ImagePullBackOff, ErrImagePull or CreateContainerConfigError, or is OOMKilled. |
+| Pod restarts | A container's restart count grows by N (default 3) within a window (default 10 minutes). |
+| Pod pending too long | A pod stays Pending longer than a duration (default 5 minutes). |
+| Deployment unavailable | A deployment has unavailable replicas for longer than a duration (default 2 minutes). |
+| Node not ready | A node's Ready condition becomes False or Unknown. |
+| Cluster unreachable | The cluster API stops answering, and again when it recovers. |
+| Warning events | Kubernetes Warning events (FailedScheduling, BackOff, Unhealthy, FailedMount, network sandbox failures and so on), optionally filtered by reason. |
+
+To keep the noise down, objects that are already in a bad state when monitoring starts do not raise "new" alerts (pending-too-long and deployment-unavailable still check them), and repeated alerts for the same object and reason are collapsed for a cooldown (default 5 minutes).
+
+**The bell.** The bell in the header (the left rail in Observatory) shows an unread badge. Its panel lists alerts newest first with severity, cluster, object, message and time. Clicking an alert switches to that cluster and opens the object. You can mark everything read or clear the history. View > Notifications (`Cmd/Ctrl+Shift+N`) opens it too.
+
+**Where the history lives.** In a SQLite file next to your settings: `notifications.sqlite` in the NatiKube config folder (`~/Library/Application Support/NatiKube/` on macOS, `%APPDATA%\NatiKube\` on Windows). By default it keeps 30 days and 5,000 rows; both are adjustable in Settings > Alerts.
+
+**OS notifications.** Settings > Alerts > OS notifications sends each new alert to the system notification center (macOS and Windows). Use **Send test notification** to check it works. If the switch is off, alerts only go to the history.
+
+**Privacy.** Nothing leaves your machine. Watching is read-only (list and watch), history and settings stay in local files, and there is no telemetry or account.
 
 ## Architecture
 

@@ -19,6 +19,7 @@ Electron. Screaming + hexagonal layout: each feature is a vertical slice with
 | `natikube-terminal` | `crates/features/terminal` | F5: local shell and pod exec terminals. |
 | `natikube-palette` | `crates/features/palette` | F7: command palette (⌘K) overlay. |
 | `natikube-settings` | `crates/features/settings` | F8: Settings window (⌘,). |
+| `natikube-alerts` | `crates/features/alerts` | F9: alert rules and evaluation, SQLite history, kube monitor, OS notifications, header bell and the Settings > Alerts page. |
 | `natikube-shell` | `crates/shell` | Window layout and `AppCommand` routing. |
 | `natikube-app` | `crates/app` | Binary `natikube`: CLI flags, catalog and settings loading. |
 
@@ -123,6 +124,12 @@ pub enum AppCommand {
     OpenSettings,
     SettingsChanged(Box<UserPrefs>),
     RemoveKubeconfig(PathBuf),
+    AlertsChanged,
+    OpenAlerts,
+    OpenAlertObject(AlertTarget),
+    AlertsConfigChanged(Box<AlertsConfig>),
+    SendTestNotification,
+    ClearAlertHistory,
 }
 pub struct PortForwardSpec { pub target: ResourceRef /* pod or service */, pub remote_port: u16, pub local_port: Option<u16> }
 ```
@@ -151,8 +158,12 @@ every feature view and routes in `ShellView::dispatch`:
 | `AddKubeconfig` | native open panel (`rfd`), appends file/folder to `extra_kubeconfigs`, reloads the catalog |
 | `ReloadClusters` | rescans kubeconfig files (`load_catalog`) and refreshes rail/header/palette |
 
-The last five rows (except `SetAppearance`) are no-ops until the integration
-step wires them.
+| `AlertsChanged` | refreshes every bell (badge and, when open, the list) |
+| `OpenAlerts` | opens the bell panel (View > Notifications, `Cmd/Ctrl+Shift+N`) |
+| `OpenAlertObject(target)` | `SelectCluster`, then opens the object with `OpenDetail` once that cluster's session exists (only switches cluster when the kind is not built in) |
+| `AlertsConfigChanged(config)` | clamps, stores in `Settings.alerts`, persists, then `AlertMonitor::apply`, `set_os_enabled`, `set_retention` |
+| `SendTestNotification` | `AlertDispatcher::send_test_notification` off the UI thread (ignores the OS switch) |
+| `ClearAlertHistory` | `AlertStore::clear`, then refreshes the bells |
 
 ## Core types (what features rely on)
 
@@ -327,12 +338,23 @@ copy/paste. Exec is unit-tested only; agents never exec against a real cluster.
 
 ### settings (F8), `natikube_settings`
 
-* `open_settings_window(settings: Settings, cx: &mut App) -> anyhow::Result<(AnyWindowHandle, Entity<SettingsView>)>` (760x560, title "Settings").
-* `SettingsView::new(settings, window, cx)`, `set_settings(Settings, cx)` (shell pushes external changes), `settings()`, `section()`, `select_section(SettingsSection, cx)`.
-  `SettingsSection { Appearance, Clusters, Terminal, Logs, Data }` with `label()` and `all()`.
+* `open_settings_window(settings: Settings, build_extra: impl FnOnce(&mut Window, &mut App) -> Option<ExtraPage>, cx: &mut App) -> anyhow::Result<(AnyWindowHandle, Entity<SettingsView>)>` (760x560, title "Settings").
+* `SettingsView::new(settings, extra, window, cx)`, `set_settings(Settings, cx)` (shell pushes external changes), `settings()`, `section()`, `select_section(SettingsSection, cx)`.
+  `SettingsSection { Appearance, Clusters, Terminal, Logs, Data, Alerts }` with `label()` and `all()`.
 * Emits `SettingsChanged(Box<UserPrefs>)` (full new preference set, on every edit), `AddKubeconfig`, `ImportFreelens`, `ReloadClusters`, `RemoveKubeconfig(PathBuf)`.
   It never writes settings.json itself; the shell persists. Only the main window quits the app when closed.
 * ⌘, and NatiKube -> Settings… route to `AppCommand::OpenSettings`.
+
+### alerts (F9), `natikube_alerts`
+
+* `domain/`: pure. `Evaluator` (one per cluster) turns `MonitorEvent`s into `Alert`s, ignoring the initial list for edge rules and collapsing repeats by `dedup_key` within a cooldown; the ports `AlertStore` and `OsNotifier`; `AlertDispatcher` (store, then OS only while `set_os_enabled(true)`, then `on_change`).
+* The configuration model (`AlertsConfig`, `RuleKind`, `AlertTarget`) lives in `natikube-core` because it is part of `Settings`. Everything defaults to off and loads tolerantly.
+* `adapters/store`: `SqliteAlertStore` (rusqlite, bundled SQLite, versioned `schema_migrations`), file `notifications.sqlite` in the config dir.
+* `adapters/monitor`: `AlertMonitor::apply(&AlertsConfig, &[ClusterInfo])` spawns one task per cluster with an enabled rule on the kube-client runtime (own `ClusterConnection`, list/watch only: pods, deployments, nodes, Warning events). Idempotent and non-blocking. Alerts go straight to the dispatcher on that thread.
+* `adapters/notify`: `NativeNotifier` (notify-rust; macOS and Windows) and `NoopNotifier`.
+* `ui/bell`: `AlertBell` entity and history panel; emits `BellEvent`. `ui/settings`: `AlertsSettingsSection`; emits `AlertsSettingsEvent`.
+* Wiring (shell, `alerts_ops.rs`): `AlertsRuntime` owns the store, dispatcher, monitor and bells. `on_change` runs on a monitor thread, so it only posts to a channel that a UI task drains into `AlertsChanged`. The Alerts page is built by the shell and handed to the Settings window as an `ExtraPage`, so `natikube-settings` does not depend on this crate. Nothing starts in `--demo` or with `--fake-rows` (no monitor, in-memory history).
+* `NATIKUBE_CONFIG_DIR` points the app at another NatiKube config folder (settings and history); use it for every QA run.
 
 ### portforward (F6), `natikube_portforward`
 
@@ -366,6 +388,7 @@ exit_after_first_frame, rows_timeout }` and `run(options)`. Pure state lives in
 | `--dump <kind>` | print the engine's objects for `<kind>` on stdout (`namespace/name`, sorted) and exit; no window |
 | `--appearance <name>` | `standard\|command\|native\|observatory`; overrides the saved appearance for this run only (never persisted); `ShellOptions.appearance_override` |
 | `--dump-clusters` | prints `context<TAB>source file name<TAB>unique\|deduped (also in: ...)` per discovered context and exits; no window, no secrets. Uses `load_catalog` + `ClusterInfo::also_in` |
+| `--fake-alerts <N>` | seeds N sample notifications into `notifications.sqlite`, never watches a cluster; refuses to run unless `NATIKUBE_CONFIG_DIR` is set (use with `--demo`) |
 | `--dump-rows` | F0 compatibility: prints `rows_count=` and `row=ns/name` for pods on stderr before the window opens (used by `scripts/measure.sh`) |
 
 ## Testing

@@ -10,6 +10,7 @@ actions!(
         Quit,
         SettingsOpen,
         PaletteOpen,
+        NotificationsOpen,
         FreelensImport,
         KubeconfigAdd,
         KubeconfigAddFolder,
@@ -54,6 +55,7 @@ pub fn build_menus(current: Appearance) -> Vec<Menu> {
         ]),
         Menu::new("View").items([
             MenuItem::action("Command Palette…", PaletteOpen),
+            MenuItem::action("Notifications", NotificationsOpen),
             MenuItem::separator(),
             MenuItem::submenu(
                 Menu::new("Appearance")

@@ -5,6 +5,7 @@ use std::sync::Mutex;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::alerts::AlertsConfig;
 use crate::appearance::Appearance;
 use crate::cluster::ClusterId;
 use crate::navigation::ViewId;
@@ -112,6 +113,10 @@ pub struct Settings {
     /// Settings window, Data section.
     #[serde(deserialize_with = "lenient")]
     pub data: DataPrefs,
+    /// Alert rules per cluster, OS notifications and history retention
+    /// (everything off by default).
+    #[serde(deserialize_with = "lenient")]
+    pub alerts: AlertsConfig,
 }
 
 impl Settings {

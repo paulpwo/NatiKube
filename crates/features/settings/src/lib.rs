@@ -13,4 +13,4 @@ pub mod domain;
 pub mod ui;
 
 pub use domain::SettingsSection;
-pub use ui::{SettingsView, open_settings_window};
+pub use ui::{ExtraPage, SettingsView, open_settings_window};

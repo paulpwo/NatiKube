@@ -81,7 +81,9 @@ impl ShellView {
                 initials,
                 cx,
             )))
-            .children(rail_buttons);
+            .children(rail_buttons)
+            .child(div().flex_1())
+            .child(self.alerts.rail_bell.clone());
 
         let cluster_name = self
             .active_info()

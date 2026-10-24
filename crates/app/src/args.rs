@@ -15,11 +15,18 @@ Options:
   --open-settings           open the Settings window at startup
   --demo                    show a fictional demo cluster (no kubeconfig, no network,
                             settings kept in memory); used for screenshots
+  --fake-alerts <N>         seed N sample notifications into the history and never watch a
+                            cluster; needs NATIKUBE_CONFIG_DIR so the real history stays
+                            untouched (use with --demo)
+  --open-alerts             open the notifications panel at startup
+  --settings-section <NAME> with --open-settings: show this page (appearance, clusters,
+                            terminal, logs, data, alerts)
   --dump-clusters           print every discovered kubeconfig context (name, source
                             file name, dedupe status; never credentials) and exit
   -h, --help                show this help";
 
 use natikube_core::Appearance;
+use natikube_settings::SettingsSection;
 
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct Args {
@@ -35,6 +42,12 @@ pub struct Args {
     pub open_settings: bool,
     /// `--demo`: fictional cluster catalog, no kubeconfig, no network.
     pub demo: bool,
+    /// `--fake-alerts N`: seed N sample alerts, no monitoring.
+    pub fake_alerts: Option<usize>,
+    /// `--open-alerts`: open the bell panel at startup.
+    pub open_alerts: bool,
+    /// `--settings-section`: page shown by `--open-settings`.
+    pub settings_section: Option<SettingsSection>,
 }
 
 impl Args {
@@ -78,6 +91,23 @@ impl Args {
                 }
                 "--open-settings" => args.open_settings = true,
                 "--demo" => args.demo = true,
+                "--open-alerts" => args.open_alerts = true,
+                "--settings-section" => {
+                    let value = raw.next().ok_or("--settings-section needs a value")?;
+                    args.settings_section = Some(
+                        SettingsSection::all()
+                            .into_iter()
+                            .find(|s| s.label().eq_ignore_ascii_case(&value))
+                            .ok_or_else(|| format!("unknown settings section {value:?}"))?,
+                    );
+                }
+                "--fake-alerts" => {
+                    let value = raw.next().ok_or("--fake-alerts needs a value")?;
+                    let count = value
+                        .parse()
+                        .map_err(|_| format!("--fake-alerts expects a number, got {value:?}"))?;
+                    args.fake_alerts = Some(count);
+                }
                 "--dump-clusters" => args.dump_clusters = true,
                 "-h" | "--help" => return Ok(None),
                 other => return Err(format!("unknown argument {other:?}")),
@@ -161,6 +191,33 @@ mod tests {
     fn parses_demo() {
         assert!(parse(&["--demo"]).unwrap().unwrap().demo);
         assert!(!parse(&[]).unwrap().unwrap().demo);
+    }
+
+    #[test]
+    fn parses_open_alerts_and_settings_section() {
+        let args = parse(&["--open-alerts", "--settings-section", "Alerts"])
+            .unwrap()
+            .unwrap();
+        assert!(args.open_alerts);
+        assert_eq!(
+            args.settings_section,
+            Some(natikube_settings::SettingsSection::Alerts)
+        );
+        assert!(parse(&["--settings-section", "nope"]).is_err());
+    }
+
+    #[test]
+    fn parses_fake_alerts() {
+        assert_eq!(
+            parse(&["--fake-alerts", "12"])
+                .unwrap()
+                .unwrap()
+                .fake_alerts,
+            Some(12)
+        );
+        assert_eq!(parse(&[]).unwrap().unwrap().fake_alerts, None);
+        assert!(parse(&["--fake-alerts"]).is_err());
+        assert!(parse(&["--fake-alerts", "lots"]).is_err());
     }
 
     #[test]

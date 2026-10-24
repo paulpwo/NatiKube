@@ -159,3 +159,30 @@ fn background_store_flushes_on_drop() {
         Some(ClusterId::new("bye"))
     );
 }
+
+#[test]
+fn config_dir_override_replaces_the_os_location() {
+    use std::ffi::OsString;
+    use std::path::PathBuf;
+    let os = Some(PathBuf::from("/os-config"));
+    assert_eq!(
+        FileSettingsStore::resolve_app_config_dir(Some(OsString::from("/tmp/qa")), os.clone()),
+        Some(PathBuf::from("/tmp/qa")),
+        "the override is the NatiKube folder itself"
+    );
+    assert_eq!(
+        FileSettingsStore::resolve_app_config_dir(None, os.clone()),
+        Some(PathBuf::from("/os-config/NatiKube"))
+    );
+    assert_eq!(
+        FileSettingsStore::resolve_app_config_dir(Some(OsString::new()), os),
+        Some(PathBuf::from("/os-config/NatiKube")),
+        "an empty override is ignored"
+    );
+    assert_eq!(
+        FileSettingsStore::resolve_app_config_dir(Some(OsString::from("/tmp/qa")), None),
+        Some(PathBuf::from("/tmp/qa")),
+        "the override works even without an OS config dir"
+    );
+    assert_eq!(FileSettingsStore::resolve_app_config_dir(None, None), None);
+}

@@ -68,4 +68,5 @@ fn appearance_submenu_checks_only_the_current_one() {
 fn view_menu_offers_the_palette() {
     let menus = build_menus(Appearance::Native);
     assert!(action_names(&menus[2]).contains(&"Command Palette…".to_string()));
+    assert!(action_names(&menus[2]).contains(&"Notifications".to_string()));
 }

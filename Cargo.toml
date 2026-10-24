@@ -12,6 +12,7 @@ members = [
     "crates/features/terminal",
     "crates/features/palette",
     "crates/features/settings",
+    "crates/features/alerts",
     "crates/shell",
     "crates/app",
 ]
@@ -42,6 +43,7 @@ natikube-portforward = { path = "crates/features/portforward" }
 natikube-terminal = { path = "crates/features/terminal" }
 natikube-palette = { path = "crates/features/palette" }
 natikube-settings = { path = "crates/features/settings" }
+natikube-alerts = { path = "crates/features/alerts" }
 natikube-shell = { path = "crates/shell" }
 
 # UI: GPUI Kit facade (re-exports the gpui-pre =0.3.9 build it pins). No
@@ -73,6 +75,12 @@ tracing = "0.1"
 # Terminal (natikube-terminal only)
 alacritty_terminal = "0.26"
 portable-pty = "0.9"
+
+# Alerts history (natikube-alerts only): bundled SQLite builds on Windows MSVC.
+rusqlite = { version = "0.41", features = ["bundled"] }
+
+# OS notifications (natikube-alerts only): macOS and Windows backends, no D-Bus.
+notify-rust = { version = "4", default-features = false }
 
 # Native save/open dialogs (NSOpenPanel / NSSavePanel on macOS)
 rfd = { version = "0.17", default-features = false }
