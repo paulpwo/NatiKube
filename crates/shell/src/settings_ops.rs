@@ -1,13 +1,16 @@
 //! Shell side of the Settings window: open/focus it, apply preference
 //! changes, remove kubeconfig sources.
 
+use std::cell::RefCell;
 use std::path::PathBuf;
+use std::rc::Rc;
 
 use gpui_kit::*;
 use std::time::Duration;
 
+use natikube_alerts::ui::settings::{AlertsSettingsEvent, AlertsSettingsSection};
 use natikube_core::{AppCommand, Settings, UserPrefs};
-use natikube_settings::open_settings_window;
+use natikube_settings::{ExtraPage, open_settings_window};
 
 use crate::shell_view::ShellView;
 
@@ -33,8 +36,44 @@ impl ShellView {
         {
             return;
         }
-        match open_settings_window(self.settings.clone(), cx) {
+        // The Alerts page is built inside the new window (its inputs need
+        // one) and handed back through `section`.
+        let section: Rc<RefCell<Option<Entity<AlertsSettingsSection>>>> = Rc::default();
+        let build_page = {
+            let section = section.clone();
+            let config = self.settings.alerts.clone();
+            let clusters = self.alert_cluster_entries();
+            move |window: &mut Window, cx: &mut App| {
+                let page = cx.new(|cx| AlertsSettingsSection::new(config, clusters, window, cx));
+                *section.borrow_mut() = Some(page.clone());
+                let flush = page.clone();
+                Some(ExtraPage {
+                    view: page.into(),
+                    flush: Rc::new(move |cx| flush.update(cx, |page, cx| page.flush_pending(cx))),
+                })
+            }
+        };
+        match open_settings_window(self.settings.clone(), build_page, cx) {
             Ok((handle, view)) => {
+                self._alerts_section_subscription = section.borrow().as_ref().map(|page| {
+                    cx.subscribe_in(
+                        page,
+                        window,
+                        |this, _, event: &AlertsSettingsEvent, window, cx| {
+                            let command = match event {
+                                AlertsSettingsEvent::ConfigChanged(config) => {
+                                    AppCommand::AlertsConfigChanged(config.clone())
+                                }
+                                AlertsSettingsEvent::SendTestNotification => {
+                                    AppCommand::SendTestNotification
+                                }
+                                AlertsSettingsEvent::ClearHistory => AppCommand::ClearAlertHistory,
+                            };
+                            this.dispatch(command, window, cx)
+                        },
+                    )
+                });
+                self.alerts_section = section.borrow().clone();
                 self._settings_subscription = Some(cx.subscribe_in(
                     &view,
                     window,
@@ -45,6 +84,17 @@ impl ShellView {
                 self.settings_window = Some((handle, view));
             }
             Err(e) => self.show_error(&format!("Could not open Settings: {e}"), cx),
+        }
+    }
+
+    /// `--settings-section`: switches the open Settings window to `section`.
+    pub(crate) fn select_settings_section(
+        &mut self,
+        section: natikube_settings::SettingsSection,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some((_, view)) = &self.settings_window {
+            view.update(cx, |view, cx| view.select_section(section, cx));
         }
     }
 

@@ -53,7 +53,8 @@ impl ShellView {
                     self.palette_trigger("native-search", "Search", &tokens, cx)
                         .w_full(),
                 ),
-            );
+            )
+            .child(self.alerts.bell.clone());
 
         let style = NavStyle {
             squares: true,

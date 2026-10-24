@@ -191,6 +191,8 @@ impl ShellView {
                 }
             }
         }
+        self.apply_alerts();
+        self.sync_alerts_settings(cx);
         self.refresh_palette(cx);
         cx.notify();
     }

@@ -12,6 +12,13 @@ use crate::domain::{
     kubeconfig_help, parse_number, shell_placeholder, step,
 };
 
+/// A page the shell supplies (the Alerts page): its view and a hook that
+/// applies any pending typed edit, called before the window closes.
+pub struct ExtraPage {
+    pub view: AnyView,
+    pub flush: std::rc::Rc<dyn Fn(&mut App)>,
+}
+
 /// Root view of the Settings window. Every edit updates the local copy at once
 /// and is emitted as `AppCommand::SettingsChanged`; the shell persists it. The
 /// view never touches `settings.json`.
@@ -22,6 +29,9 @@ pub struct SettingsView {
     shell: Entity<InputState>,
     namespace: Entity<InputState>,
     tail_lines: Entity<InputState>,
+    /// The Alerts page, built by the shell so this crate never depends on the
+    /// alerts slice.
+    extra: Option<ExtraPage>,
     /// Typed text edits waiting for the debounce timer.
     pending: PendingEdits,
     _subscriptions: Vec<Subscription>,
@@ -30,7 +40,12 @@ pub struct SettingsView {
 impl EventEmitter<AppCommand> for SettingsView {}
 
 impl SettingsView {
-    pub fn new(settings: Settings, window: &mut Window, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        settings: Settings,
+        extra: Option<ExtraPage>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let text_input =
             |placeholder: &str, value: Option<&str>, window: &mut Window, cx: &mut App| {
                 let placeholder = placeholder.to_string();
@@ -107,6 +122,7 @@ impl SettingsView {
             shell,
             namespace,
             tail_lines,
+            extra,
             pending: PendingEdits::default(),
             _subscriptions: subscriptions,
         }
@@ -171,6 +187,9 @@ impl SettingsView {
     pub fn flush_pending(&mut self, cx: &mut Context<Self>) {
         for edit in self.pending.take_all() {
             self.edit(edit, cx);
+        }
+        if let Some(extra) = &self.extra {
+            (extra.flush)(cx);
         }
     }
 
@@ -665,6 +684,15 @@ impl Render for SettingsView {
             SettingsSection::Terminal => self.render_terminal(cx),
             SettingsSection::Logs => self.render_logs(cx),
             SettingsSection::Data => self.render_data(cx),
+            SettingsSection::Alerts => match &self.extra {
+                Some(extra) => div().w_full().child(extra.view.clone()),
+                None => page("Alerts", p).child(
+                    div()
+                        .text_sm()
+                        .text_color(p.text_muted)
+                        .child("Alerts are not available in this build."),
+                ),
+            },
             SettingsSection::Updates => self.render_updates(cx),
         };
         h_flex()
@@ -699,8 +727,11 @@ impl Render for SettingsView {
 }
 
 /// Opens the Settings window (760x560, centered) showing `settings`.
+/// `build_extra` runs once inside the new window and may supply the Alerts
+/// page.
 pub fn open_settings_window(
     settings: Settings,
+    build_extra: impl FnOnce(&mut Window, &mut App) -> Option<ExtraPage> + 'static,
     cx: &mut App,
 ) -> anyhow::Result<(AnyWindowHandle, Entity<SettingsView>)> {
     let options = WindowOptions {
@@ -712,7 +743,8 @@ pub fn open_settings_window(
         ..WindowOptions::default()
     };
     gpui_kit::open_window(options, cx, move |window, cx| {
-        let view = cx.new(|cx| SettingsView::new(settings, window, cx));
+        let extra = build_extra(window, cx);
+        let view = cx.new(|cx| SettingsView::new(settings, extra, window, cx));
         // Apply any text edit still waiting on its debounce before the window
         // goes away, so the last keystrokes are never lost.
         let closing = view.clone();

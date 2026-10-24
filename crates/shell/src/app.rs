@@ -2,13 +2,14 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use gpui_kit::*;
+use natikube_alerts::AlertStore;
 use natikube_core::{AppCommand, Appearance, ClusterId, ClusterInfo, SettingsStore};
 use natikube_ui_kit::set_appearance;
 
 use crate::menus::{
     AppearanceCommand, AppearanceNative, AppearanceObservatory, AppearanceStandard, ClustersReload,
-    FreelensImport, KubeconfigAdd, KubeconfigAddFolder, PaletteOpen, Quit, SettingsOpen,
-    WindowMinimize, WindowZoom, install_menus,
+    FreelensImport, KubeconfigAdd, KubeconfigAddFolder, NotificationsOpen, PaletteOpen, Quit,
+    SettingsOpen, WindowMinimize, WindowZoom, install_menus,
 };
 use crate::shell_view::ShellView;
 
@@ -22,6 +23,16 @@ fn app_key_context_for(is_macos: bool) -> Option<&'static str> {
 
 fn app_key_context() -> Option<&'static str> {
     app_key_context_for(cfg!(target_os = "macos"))
+}
+
+/// The alert history and whether the shell may start watchers for it.
+#[derive(Clone)]
+pub struct AlertsOptions {
+    /// Where fired alerts are kept (SQLite in the config dir, or memory).
+    pub store: Arc<dyn AlertStore>,
+    /// Start the monitor for clusters with enabled rules. Off in the demo
+    /// and with fake data, where nothing may reach the network.
+    pub monitor: bool,
 }
 
 /// Everything the shell needs from the binary.
@@ -50,6 +61,10 @@ pub struct ShellOptions {
     pub native_dark_override: Option<bool>,
     /// `--open-settings`: open the Settings window at startup.
     pub open_settings: bool,
+    /// `--settings-section`: the page `--open-settings` starts on.
+    pub settings_section: Option<natikube_settings::SettingsSection>,
+    /// `--open-alerts`: open the notifications panel at startup.
+    pub open_alerts: bool,
     /// `--demo`: a fictional catalog served by the built-in demo data. No
     /// kubeconfig is read, nothing reaches the network, and kubeconfig
     /// management (reload, import, add, remove) does nothing.
@@ -57,6 +72,8 @@ pub struct ShellOptions {
     /// A non-blocking message about startup (for example a settings file that
     /// could not be read); shown in the status bar.
     pub startup_warning: Option<String>,
+    /// The alert history and monitor switch.
+    pub alerts: AlertsOptions,
     /// The running version, compared against the latest GitHub release.
     pub app_version: &'static str,
     /// `--fake-update <version>`: offer this version without any network
@@ -93,6 +110,7 @@ pub fn run(options: ShellOptions) {
             KeyBinding::new("secondary-k", PaletteOpen, app_key_context()),
             KeyBinding::new("secondary-,", SettingsOpen, app_key_context()),
             KeyBinding::new("secondary-m", WindowMinimize, app_key_context()),
+            KeyBinding::new("secondary-shift-n", NotificationsOpen, app_key_context()),
         ]);
         install_menus(initial, cx);
 
@@ -106,6 +124,8 @@ pub fn run(options: ShellOptions) {
         };
 
         let options_open_settings = options.open_settings;
+        let options_settings_section = options.settings_section;
+        let options_open_alerts = options.open_alerts;
         let (window, shell) = gpui_kit::open_window(window_options, cx, move |window, cx| {
             cx.new(|cx| ShellView::new(options, window, cx))
         })
@@ -123,6 +143,20 @@ pub fn run(options: ShellOptions) {
             let _ = window.update(cx, move |_, window, cx| {
                 shell.update(cx, |view, cx| {
                     view.dispatch(AppCommand::OpenSettings, window, cx)
+                })
+            });
+        }
+        if let Some(section) = options_settings_section.filter(|_| options_open_settings) {
+            let shell = shell.clone();
+            let _ = window.update(cx, move |_, _, cx| {
+                shell.update(cx, |view, cx| view.select_settings_section(section, cx))
+            });
+        }
+        if options_open_alerts {
+            let shell = shell.clone();
+            let _ = window.update(cx, move |_, window, cx| {
+                shell.update(cx, |view, cx| {
+                    view.dispatch(AppCommand::OpenAlerts, window, cx)
                 })
             });
         }
@@ -165,6 +199,7 @@ fn update_window_later(
 fn wire_menu_actions(window: AnyWindowHandle, shell: Entity<ShellView>, cx: &mut App) {
     route::<PaletteOpen>(AppCommand::OpenPalette, window, &shell, cx);
     route::<SettingsOpen>(AppCommand::OpenSettings, window, &shell, cx);
+    route::<NotificationsOpen>(AppCommand::OpenAlerts, window, &shell, cx);
     route::<FreelensImport>(AppCommand::ImportFreelens, window, &shell, cx);
     route::<KubeconfigAdd>(AppCommand::AddKubeconfig, window, &shell, cx);
     route::<ClustersReload>(AppCommand::ReloadClusters, window, &shell, cx);

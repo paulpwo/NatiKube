@@ -66,6 +66,7 @@ impl ShellView {
                                 this.dispatch(AppCommand::OpenLocalShell, window, cx)
                             })),
                     )
+                    .child(self.alerts.bell.clone())
                     .child(self.appearance_dropdown("command-appearance", "Aa", cx)),
             );
 

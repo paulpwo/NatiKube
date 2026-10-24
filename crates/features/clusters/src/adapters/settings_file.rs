@@ -1,3 +1,4 @@
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 use natikube_core::{Settings, SettingsError, SettingsStore};
@@ -13,16 +14,40 @@ impl FileSettingsStore {
         Self { path: path.into() }
     }
 
-    /// `settings.json` inside the OS config dir: `~/Library/Application
-    /// Support/NatiKube` on macOS, `%APPDATA%\NatiKube` on Windows.
+    /// Environment variable that replaces the whole NatiKube config folder
+    /// (used by tests and QA runs so they never touch the real settings).
+    pub const CONFIG_DIR_ENV: &'static str = "NATIKUBE_CONFIG_DIR";
+
+    /// `settings.json` inside [`app_config_dir`](Self::app_config_dir).
     pub fn default_location() -> Option<Self> {
-        Self::in_config_dir(dirs::config_dir())
+        Self::app_config_dir().map(|dir| Self::new(dir.join("settings.json")))
     }
 
-    /// [`default_location`](Self::default_location) for an explicit config
-    /// dir (a pure function, so path resolution is testable on any OS).
+    /// The NatiKube config folder, home of `settings.json` and
+    /// `notifications.sqlite`: `$NATIKUBE_CONFIG_DIR` when set and not empty,
+    /// otherwise `~/Library/Application Support/NatiKube` on macOS or
+    /// `%APPDATA%\NatiKube` on Windows.
+    pub fn app_config_dir() -> Option<PathBuf> {
+        Self::resolve_app_config_dir(std::env::var_os(Self::CONFIG_DIR_ENV), dirs::config_dir())
+    }
+
+    /// [`app_config_dir`](Self::app_config_dir) with its inputs passed in (a
+    /// pure function, so it is testable without touching the environment).
+    pub fn resolve_app_config_dir(
+        override_dir: Option<OsString>,
+        os_config_dir: Option<PathBuf>,
+    ) -> Option<PathBuf> {
+        match override_dir {
+            Some(dir) if !dir.is_empty() => Some(PathBuf::from(dir)),
+            _ => os_config_dir.map(|dir| dir.join("NatiKube")),
+        }
+    }
+
+    /// `settings.json` for an explicit OS config dir (the `NatiKube` folder is
+    /// appended; a pure function, so path resolution is testable on any OS).
     pub fn in_config_dir(config_dir: Option<PathBuf>) -> Option<Self> {
-        config_dir.map(|dir| Self::new(dir.join("NatiKube").join("settings.json")))
+        Self::resolve_app_config_dir(None, config_dir)
+            .map(|dir| Self::new(dir.join("settings.json")))
     }
 
     /// `settings.json.bak` next to the file, or the first free `.bak1`,

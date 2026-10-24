@@ -11,6 +11,7 @@ fn sections_are_in_sidebar_order_with_labels() {
             "Terminal",
             "Logs",
             "Data",
+            "Alerts",
             "Updates"
         ]
     );

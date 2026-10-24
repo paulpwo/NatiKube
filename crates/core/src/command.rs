@@ -1,3 +1,4 @@
+use crate::alerts::{AlertTarget, AlertsConfig};
 use crate::appearance::Appearance;
 use crate::cluster::{ClusterId, ConnectionState};
 use crate::navigation::ViewId;
@@ -89,4 +90,18 @@ pub enum AppCommand {
     /// "Remove" in Settings → Clusters: the shell drops this path from
     /// `extra_kubeconfigs`, persists and reloads the catalog.
     RemoveKubeconfig(PathBuf),
+    /// The alert history changed (new alert, read state, cleared): bells
+    /// refresh their badge.
+    AlertsChanged,
+    /// Open the alert history panel (View → Notifications).
+    OpenAlerts,
+    /// An alert was clicked: switch to its cluster and open its object.
+    OpenAlertObject(AlertTarget),
+    /// The Alerts settings changed. The shell clamps, persists and applies it
+    /// (monitor, OS switch, retention).
+    AlertsConfigChanged(Box<AlertsConfig>),
+    /// "Send test notification" in Settings → Alerts.
+    SendTestNotification,
+    /// "Clear history" in Settings → Alerts.
+    ClearAlertHistory,
 }

@@ -2,6 +2,7 @@
 //! `natikube`: parses flags, loads the cluster catalog and settings, and
 //! hands over to the shell.
 
+mod alerts;
 mod args;
 mod demo;
 
@@ -112,6 +113,21 @@ fn main() -> ExitCode {
         Arc::new(move || background.flush()) as Arc<dyn Fn() + Send + Sync>
     });
 
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs() as i64);
+    let opened = match alerts::open_alerts(&args, &catalog, now) {
+        Ok(opened) => opened,
+        Err(message) => {
+            eprintln!("error: {message}");
+            return ExitCode::from(2);
+        }
+    };
+    let startup_warning = match (startup_warning, opened.warning) {
+        (Some(a), Some(b)) => Some(format!("{a} {b}")),
+        (a, b) => a.or(b),
+    };
+
     natikube_shell::run(ShellOptions {
         store,
         catalog,
@@ -123,8 +139,11 @@ fn main() -> ExitCode {
         appearance_override: args.appearance,
         native_dark_override: args.native_dark,
         open_settings: args.open_settings,
+        settings_section: args.settings_section,
+        open_alerts: args.open_alerts,
         demo: args.demo,
         startup_warning,
+        alerts: opened.options,
         app_version: env!("CARGO_PKG_VERSION"),
         fake_update: args.fake_update,
         on_quit,

@@ -5,6 +5,7 @@
 //! Features never depend on each other; they emit `AppCommand`s as GPUI events
 //! and the shell reacts. See `docs/architecture.md`.
 
+mod alerts_ops;
 mod app;
 mod chrome;
 mod dock;
@@ -21,6 +22,6 @@ mod sidebar;
 pub mod state;
 mod update_ops;
 
-pub use app::{ShellOptions, run};
+pub use app::{AlertsOptions, ShellOptions, run};
 pub use shell_view::ShellView;
 pub use state::{DockState, NavState};
