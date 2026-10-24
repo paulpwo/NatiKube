@@ -66,9 +66,10 @@ fn parse_number_accepts_digits_and_clamps() {
 #[test]
 fn display_path_abbreviates_home() {
     let home = Path::new("/Users/me");
+    // The separator after "~" is the platform's own.
     assert_eq!(
         display_path(Path::new("/Users/me/.kube/config"), Some(home)),
-        "~/.kube/config"
+        format!("~{}.kube/config", std::path::MAIN_SEPARATOR)
     );
     assert_eq!(display_path(Path::new("/Users/me"), Some(home)), "~");
     assert_eq!(
