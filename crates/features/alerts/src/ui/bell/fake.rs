@@ -45,9 +45,9 @@ const SAMPLES: &[Sample] = &[
     ),
     (
         RuleKind::PodRestarts,
-        Some("data"),
+        Some("auth"),
         Some("Pod"),
-        "redis-0",
+        "auth-redis-0",
         "Restarted 4 times in the last 10 minutes",
         55 * 60,
     ),
