@@ -66,6 +66,9 @@ jobs:
       - name: Write release notes
         run: |
           cat > RELEASE_NOTES.md <<'NOTES'
+          > **Alpha release.** NatiKube is under active development: expect rough
+          > edges, missing features and breaking changes between releases.
+
           NatiKube is a native Kubernetes desktop app. These builds are not
           code-signed or notarized, so your OS will warn you the first time.
 
@@ -99,6 +102,8 @@ jobs:
       - uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
         with:
           body_path: RELEASE_NOTES.md
+          # Alpha: every release is a pre-release until the first stable version.
+          prerelease: true
           generate_release_notes: true
           fail_on_unmatched_files: true
           files: |

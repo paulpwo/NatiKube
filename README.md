@@ -8,6 +8,7 @@
 
 **A fast, 100% native Kubernetes desktop app. Rust and GPUI: no Electron, no webview, no bundled kubectl.**
 
+[![Status: alpha](https://img.shields.io/badge/status-alpha-orange.svg)](#status)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Platforms: macOS | Windows](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-lightgrey.svg)](#install)
 [![Built with Rust](https://img.shields.io/badge/built%20with-Rust-orange.svg)](https://www.rust-lang.org)
@@ -16,6 +17,9 @@
 <img src="docs/screenshots/command.png" alt="NatiKube, Command appearance, showing the pods of a demo cluster" width="900">
 
 </div>
+
+> [!WARNING]
+> **NatiKube is in early alpha.** It is under active development: expect rough edges, missing features and breaking changes between releases. Please [open an issue](https://github.com/paulpwo/NatiKube/issues) when something breaks.
 
 ## Gallery
 
@@ -74,6 +78,16 @@ shasum -a 256 -c NatiKube-<version>-macos-arm64.dmg.sha256      # macOS
 ### Homebrew
 
 A Homebrew cask is **coming soon**. A template lives in [`packaging/homebrew`](packaging/homebrew/natikube.rb).
+
+## Status
+
+NatiKube is **alpha** software. Releases are published as pre-releases until the first stable version.
+
+| Platform | Status |
+| --- | --- |
+| macOS (Apple Silicon) | Alpha |
+| Windows (x64) | Alpha, less tested |
+| Linux | Planned |
 
 ## Build from source
 
