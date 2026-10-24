@@ -102,6 +102,11 @@ pub enum AppCommand {
     AlertsConfigChanged(Box<AlertsConfig>),
     /// "Send test notification" in Settings → Alerts.
     SendTestNotification,
+    /// "Open System Settings" in Settings → Alerts (macOS notification pane).
+    OpenNotificationSettings,
+    /// "Preview" next to the sound picker in Settings → Alerts: play this
+    /// system sound once.
+    PreviewAlertSound(String),
     /// "Clear history" in Settings → Alerts.
     ClearAlertHistory,
 }

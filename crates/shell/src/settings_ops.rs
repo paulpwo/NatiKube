@@ -67,6 +67,12 @@ impl ShellView {
                                 AlertsSettingsEvent::SendTestNotification => {
                                     AppCommand::SendTestNotification
                                 }
+                                AlertsSettingsEvent::OpenNotificationSettings => {
+                                    AppCommand::OpenNotificationSettings
+                                }
+                                AlertsSettingsEvent::PreviewSound(name) => {
+                                    AppCommand::PreviewAlertSound(name.clone())
+                                }
                                 AlertsSettingsEvent::ClearHistory => AppCommand::ClearAlertHistory,
                             };
                             this.dispatch(command, window, cx)
@@ -82,6 +88,8 @@ impl ShellView {
                     },
                 ));
                 self.settings_window = Some((handle, view));
+                // The user may have changed it in System Settings meanwhile.
+                self.refresh_notification_permission(false, cx);
             }
             Err(e) => self.show_error(&format!("Could not open Settings: {e}"), cx),
         }

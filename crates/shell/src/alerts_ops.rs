@@ -6,15 +6,22 @@
 //! channel that a UI-thread task drains.
 
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use futures::StreamExt as _;
 use futures::channel::mpsc;
 use gpui_kit::*;
 use natikube_alerts::adapters::monitor::AlertMonitor;
 use natikube_alerts::adapters::notify::{NativeNotifier, NoopNotifier};
-use natikube_alerts::ui::bell::{AlertBell, BellEvent};
+use natikube_alerts::adapters::sound::SystemSoundPlayer;
+use natikube_alerts::domain::{should_request_at_startup, should_request_on_enable};
+use natikube_alerts::ui::bell::{AlertBell, BellEvent, fake_alerts};
 use natikube_alerts::ui::settings::AlertClusterEntry;
-use natikube_alerts::{AlertDispatcher, AlertStore, OsNotifier};
+use natikube_alerts::ui::toast::ToastHost;
+use natikube_alerts::{
+    AlertDispatcher, AlertStore, OsNotifier, PermissionState, SoundPlayer, SoundThrottle,
+    StoredAlert, plan_batch,
+};
 use natikube_core::{AlertTarget, AlertsConfig, AppCommand, ResourceRef, kinds};
 
 use crate::app::{AlertsOptions, ShellOptions};
@@ -24,14 +31,58 @@ use crate::shell_view::ShellView;
 pub(crate) struct AlertsRuntime {
     pub(crate) store: Arc<dyn AlertStore>,
     pub(crate) dispatcher: Arc<AlertDispatcher>,
+    /// Last known OS notification permission (macOS); `NotApplicable`
+    /// elsewhere and until the first read lands.
+    pub(crate) permission: PermissionState,
     /// Header bell (Standard, Command, Native).
     pub(crate) bell: Entity<AlertBell>,
     /// Bell for the Observatory rail; its panel opens to the right.
     pub(crate) rail_bell: Entity<AlertBell>,
+    /// In-app toasts, painted over the window's bottom right corner.
+    pub(crate) toasts: Entity<ToastHost>,
+    sound: Arc<dyn SoundPlayer>,
+    sound_throttle: SoundThrottle,
+    /// Clock of the sound throttle.
+    started: Instant,
     /// `None` when nothing may touch the network (demo, fake data).
     monitor: Option<AlertMonitor>,
     _drain: Task<()>,
+    _fired_drain: Task<()>,
+    _live_fake: Option<Task<()>>,
     _subscriptions: Vec<Subscription>,
+}
+
+/// Demo and fake-data runs: reports the real permission but never shows
+/// anything.
+struct DemoNotifier(NativeNotifier);
+
+impl OsNotifier for DemoNotifier {
+    fn notify(&self, alert: &natikube_alerts::Alert) -> Result<(), natikube_alerts::NotifyError> {
+        NoopNotifier.notify(alert)
+    }
+
+    fn send_test(&self) -> Result<(), natikube_alerts::NotifyError> {
+        NoopNotifier.send_test()
+    }
+
+    fn permission(&self) -> PermissionState {
+        self.0.permission()
+    }
+
+    fn request_permission(&self) -> PermissionState {
+        self.0.request_permission()
+    }
+}
+
+/// `--fake-live-alerts`: wait before the first sample alert, then space them
+/// out so each one is its own batch.
+const LIVE_FAKE_DELAY: Duration = Duration::from_millis(1500);
+const LIVE_FAKE_GAP: Duration = Duration::from_millis(900);
+
+fn unix_now() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs() as i64)
 }
 
 /// Maps a bell click to the navigation command.
@@ -67,34 +118,63 @@ impl AlertsRuntime {
         window: &mut Window,
         cx: &mut Context<ShellView>,
     ) -> Self {
-        let AlertsOptions { store, monitor } = options.alerts.clone();
+        let AlertsOptions {
+            store,
+            monitor,
+            live_fake,
+        } = options.alerts.clone();
         let (tx, mut rx) = mpsc::unbounded::<()>();
         let on_change: Arc<dyn Fn() + Send + Sync> = Arc::new(move || {
             let _ = tx.unbounded_send(());
         });
+        // The permission API is read even in the demo (nothing is sent there:
+        // the demo has no monitor and the test button is disabled), so the
+        // Settings page shows the real state.
         let notifier: Arc<dyn OsNotifier> = if options.demo || options.fake_rows.is_some() {
-            Arc::new(NoopNotifier)
+            Arc::new(DemoNotifier(NativeNotifier::new()))
         } else {
             Arc::new(NativeNotifier::new())
         };
         let dispatcher = Arc::new(AlertDispatcher::new(store.clone(), notifier, on_change));
+        // Toasts and sound ride the same stream as the bell: the dispatcher
+        // reports every stored batch and a UI-thread task acts on it.
+        let (fired_tx, mut fired_rx) = mpsc::unbounded::<Vec<StoredAlert>>();
+        dispatcher.set_on_fired(Arc::new(move |rows: &[StoredAlert]| {
+            let _ = fired_tx.unbounded_send(rows.to_vec());
+        }));
         let monitor = (monitor && !options.demo && options.fake_rows.is_none())
             .then(|| AlertMonitor::new(dispatcher.clone()));
 
         let bell = cx.new(|_| AlertBell::new(store.clone()));
         let rail_bell = cx.new(|_| AlertBell::in_rail(store.clone()));
-        let subscriptions = [&bell, &rail_bell]
+        let toasts = cx.new(|_| ToastHost::new(store.clone()));
+        // The bells and the toasts speak the same events: a click opens the
+        // alert's object, a read-state change refreshes the badges.
+        let on_event = |this: &mut ShellView,
+                        event: &BellEvent,
+                        window: &mut Window,
+                        cx: &mut Context<ShellView>| {
+            let command = match event {
+                BellEvent::OpenObject(target) => open_object_command(target.clone()),
+                BellEvent::Changed => AppCommand::AlertsChanged,
+            };
+            this.dispatch(command, window, cx)
+        };
+        let mut subscriptions: Vec<Subscription> = [&bell, &rail_bell]
             .into_iter()
             .map(|bell| {
-                cx.subscribe_in(bell, window, |this, _, event: &BellEvent, window, cx| {
-                    let command = match event {
-                        BellEvent::OpenObject(target) => open_object_command(target.clone()),
-                        BellEvent::Changed => AppCommand::AlertsChanged,
-                    };
-                    this.dispatch(command, window, cx)
-                })
+                cx.subscribe_in(
+                    bell,
+                    window,
+                    move |this, _, event: &BellEvent, window, cx| on_event(this, event, window, cx),
+                )
             })
             .collect();
+        subscriptions.push(cx.subscribe_in(
+            &toasts,
+            window,
+            move |this, _, event: &BellEvent, window, cx| on_event(this, event, window, cx),
+        ));
 
         // Coalesce bursts: one refresh per drained batch.
         let drain = cx.spawn_in(window, async move |this, cx| {
@@ -109,13 +189,60 @@ impl AlertsRuntime {
             }
         });
 
+        // One wake-up per burst: batches that arrived together share their
+        // toasts and a single sound.
+        let fired_drain = cx.spawn_in(window, async move |this, cx| {
+            while let Some(mut batch) = fired_rx.next().await {
+                while let Ok(more) = fired_rx.try_recv() {
+                    batch.extend(more);
+                }
+                if this
+                    .update(cx, |this, cx| this.on_alerts_fired(batch, cx))
+                    .is_err()
+                {
+                    break;
+                }
+            }
+        });
+
+        let live_fake =
+            (live_fake > 0 && (options.demo || options.fake_rows.is_some())).then(|| {
+                let cluster = options
+                    .catalog
+                    .first()
+                    .map(|c| c.id.clone())
+                    .unwrap_or_else(|| natikube_core::ClusterId::new("fake-cluster"));
+                let dispatcher = dispatcher.clone();
+                cx.spawn_in(window, async move |_, cx| {
+                    cx.background_executor().timer(LIVE_FAKE_DELAY).await;
+                    let now = unix_now();
+                    for (n, mut alert) in fake_alerts(now, &cluster, live_fake)
+                        .into_iter()
+                        .enumerate()
+                    {
+                        alert.id = format!("live-{n}");
+                        alert.dedup_key = format!("live-{n}");
+                        alert.timestamp = now;
+                        dispatcher.dispatch(&[alert], now);
+                        cx.background_executor().timer(LIVE_FAKE_GAP).await;
+                    }
+                })
+            });
+
         Self {
             store,
             dispatcher,
+            permission: PermissionState::NotApplicable,
             bell,
             rail_bell,
+            toasts,
+            sound: Arc::new(SystemSoundPlayer::new()),
+            sound_throttle: SoundThrottle::new(),
+            started: Instant::now(),
             monitor,
             _drain: drain,
+            _fired_drain: fired_drain,
+            _live_fake: live_fake,
             _subscriptions: subscriptions,
         }
     }
@@ -176,11 +303,96 @@ impl ShellView {
             return;
         }
         let clamped = next != received;
+        let turned_on = should_request_on_enable(
+            self.settings.alerts.os_notifications,
+            next.os_notifications,
+            &self.alerts.permission,
+        );
         self.settings.alerts = next;
         self.persist();
         self.apply_alerts();
         if clamped {
             self.sync_alerts_settings(cx);
+        }
+        if turned_on {
+            self.request_notification_permission(cx);
+        }
+    }
+
+    /// Reads the OS permission off the UI thread. With `startup`, also asks
+    /// when the switch is already on and the user was never asked.
+    pub(crate) fn refresh_notification_permission(
+        &mut self,
+        startup: bool,
+        cx: &mut Context<Self>,
+    ) {
+        let dispatcher = self.alerts.dispatcher.clone();
+        let os_on = self.settings.alerts.os_notifications;
+        let task = cx.background_spawn(async move {
+            let state = dispatcher.permission();
+            if startup && should_request_at_startup(os_on, &state) {
+                dispatcher.request_permission()
+            } else {
+                state
+            }
+        });
+        self.await_permission(task, cx);
+    }
+
+    /// Shows the macOS permission prompt (once: an answered status is never
+    /// asked again) and records the answer.
+    pub(crate) fn request_notification_permission(&mut self, cx: &mut Context<Self>) {
+        let dispatcher = self.alerts.dispatcher.clone();
+        let task = cx.background_spawn(async move { dispatcher.request_permission() });
+        self.await_permission(task, cx);
+    }
+
+    fn await_permission(&mut self, task: Task<PermissionState>, cx: &mut Context<Self>) {
+        cx.spawn(async move |this, cx| {
+            let state = task.await;
+            let _ = this.update(cx, |this, cx| {
+                this.alerts.permission = state;
+                this.sync_alerts_settings(cx);
+            });
+        })
+        .detach();
+    }
+
+    /// A batch of alerts was just stored: show the toasts and play the sound
+    /// the settings ask for. Runs on the UI thread; playing only starts the
+    /// system sound and returns.
+    fn on_alerts_fired(&mut self, batch: Vec<StoredAlert>, cx: &mut Context<Self>) {
+        let now = self.alerts.started.elapsed().as_millis() as u64;
+        let plan = plan_batch(
+            &self.settings.alerts,
+            &mut self.alerts.sound_throttle,
+            now,
+            &batch,
+        );
+        if plan.toasts {
+            self.alerts
+                .toasts
+                .update(cx, |toasts, cx| toasts.push(&batch, cx));
+        }
+        if let Some(name) = plan.sound
+            && let Err(error) = self.alerts.sound.play(&name)
+        {
+            tracing::warn!(%error, "could not play the alert sound");
+        }
+    }
+
+    /// "Preview" in Settings → Alerts: plays regardless of the switches and
+    /// the throttle, and reports a failure.
+    pub(crate) fn preview_alert_sound(&mut self, name: &str, cx: &mut Context<Self>) {
+        if let Err(error) = self.alerts.sound.play(name) {
+            self.show_error(&format!("Could not play the sound: {error}"), cx);
+        }
+    }
+
+    /// "Open System Settings" next to a denied permission.
+    pub(crate) fn open_notification_settings(&mut self, cx: &mut Context<Self>) {
+        if let Err(e) = natikube_alerts::adapters::notify::open_notification_settings() {
+            self.show_error(&format!("Could not open System Settings: {e}"), cx);
         }
     }
 
@@ -194,9 +406,11 @@ impl ShellView {
         let (handle, section) = (*handle, section.clone());
         let config = self.settings.alerts.clone();
         let clusters = self.alert_cluster_entries();
+        let permission = self.alerts.permission.clone();
         cx.defer(move |cx| {
             let _ = handle.update(cx, move |_, window, cx| {
                 section.update(cx, |section, cx| {
+                    section.set_permission(permission, cx);
                     section.set_config(config, window, cx);
                     section.set_clusters(clusters, window, cx);
                 })

@@ -25,6 +25,11 @@ pub enum AlertsEdit {
     /// Namespace filter, as typed (comma or space separated, empty: all).
     Namespaces(ClusterId, String),
     OsNotifications(bool),
+    InAppToasts(bool),
+    Sound(bool),
+    SoundCriticalOnly(bool),
+    /// One of `AlertsConfig::SYSTEM_SOUNDS`; anything else is ignored.
+    SoundName(String),
     RetentionDays(u32),
     RetentionRows(u32),
     CooldownSecs(u32),
@@ -62,6 +67,14 @@ pub fn apply_edit(config: &AlertsConfig, edit: AlertsEdit) -> AlertsConfig {
             };
         }
         AlertsEdit::OsNotifications(on) => next.os_notifications = on,
+        AlertsEdit::InAppToasts(on) => next.in_app_toasts = on,
+        AlertsEdit::Sound(on) => next.sound = on,
+        AlertsEdit::SoundCriticalOnly(on) => next.sound_critical_only = on,
+        AlertsEdit::SoundName(name) => {
+            if AlertsConfig::SYSTEM_SOUNDS.contains(&name.as_str()) {
+                next.sound_name = name;
+            }
+        }
         AlertsEdit::RetentionDays(days) => {
             next.retention.max_age_days = clamp(
                 days,
@@ -257,6 +270,27 @@ mod tests {
         assert_eq!(config.retention.max_age_days, 1);
         assert_eq!(config.retention.max_rows, 100_000);
         assert_eq!(config.cooldown_secs, 10);
+    }
+
+    #[test]
+    fn toast_and_sound_switches_edit_only_their_own_field() {
+        let base = AlertsConfig::default();
+        let off = apply_edit(&base, AlertsEdit::InAppToasts(false));
+        assert!(!off.in_app_toasts && !off.sound);
+        let sound = apply_edit(&base, AlertsEdit::Sound(true));
+        assert!(sound.sound && sound.in_app_toasts && !sound.sound_critical_only);
+        let critical = apply_edit(&sound, AlertsEdit::SoundCriticalOnly(true));
+        assert!(critical.sound && critical.sound_critical_only);
+    }
+
+    #[test]
+    fn the_sound_name_must_be_a_known_system_sound() {
+        let base = AlertsConfig::default();
+        let other = AlertsConfig::SYSTEM_SOUNDS[2];
+        let picked = apply_edit(&base, AlertsEdit::SoundName(other.into()));
+        assert_eq!(picked.sound_name, other);
+        let rejected = apply_edit(&picked, AlertsEdit::SoundName("Nope".into()));
+        assert_eq!(rejected.sound_name, other, "unknown names are ignored");
     }
 
     #[test]

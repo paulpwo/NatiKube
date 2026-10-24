@@ -19,7 +19,7 @@ Electron. Screaming + hexagonal layout: each feature is a vertical slice with
 | `natikube-terminal` | `crates/features/terminal` | F5: local shell and pod exec terminals. |
 | `natikube-palette` | `crates/features/palette` | F7: command palette (⌘K) overlay. |
 | `natikube-settings` | `crates/features/settings` | F8: Settings window (⌘,). |
-| `natikube-alerts` | `crates/features/alerts` | F9: alert rules and evaluation, SQLite history, kube monitor, OS notifications, header bell and the Settings > Alerts page. |
+| `natikube-alerts` | `crates/features/alerts` | F9: alert rules and evaluation, SQLite history, kube monitor, OS notifications, in-app toasts, alert sounds, header bell and the Settings > Alerts page. |
 | `natikube-updates` | `crates/features/updates` | Startup update check: GitHub Releases fetch (hyper + rustls), semver selection, the dismissible "update available" modal. |
 | `natikube-shell` | `crates/shell` | Window layout and `AppCommand` routing. |
 | `natikube-app` | `crates/app` | Binary `natikube`: CLI flags, catalog and settings loading. |
@@ -130,6 +130,7 @@ pub enum AppCommand {
     OpenAlertObject(AlertTarget),
     AlertsConfigChanged(Box<AlertsConfig>),
     SendTestNotification,
+    PreviewAlertSound(String),
     ClearAlertHistory,
 }
 pub struct PortForwardSpec { pub target: ResourceRef /* pod or service */, pub remote_port: u16, pub local_port: Option<u16> }
@@ -164,6 +165,7 @@ every feature view and routes in `ShellView::dispatch`:
 | `OpenAlertObject(target)` | `SelectCluster`, then opens the object with `OpenDetail` once that cluster's session exists (only switches cluster when the kind is not built in) |
 | `AlertsConfigChanged(config)` | clamps, stores in `Settings.alerts`, persists, then `AlertMonitor::apply`, `set_os_enabled`, `set_retention` |
 | `SendTestNotification` | `AlertDispatcher::send_test_notification` off the UI thread (ignores the OS switch) |
+| `PreviewAlertSound(name)` | plays that system sound once (Settings > Alerts > Preview), ignoring the switches and the throttle |
 | `ClearAlertHistory` | `AlertStore::clear`, then refreshes the bells |
 
 ## Core types (what features rely on)
@@ -356,9 +358,10 @@ copy/paste. Exec is unit-tested only; agents never exec against a real cluster.
 * The configuration model (`AlertsConfig`, `RuleKind`, `AlertTarget`) lives in `natikube-core` because it is part of `Settings`. Everything defaults to off and loads tolerantly.
 * `adapters/store`: `SqliteAlertStore` (rusqlite, bundled SQLite, versioned `schema_migrations`), file `notifications.sqlite` in the config dir.
 * `adapters/monitor`: `AlertMonitor::apply(&AlertsConfig, &[ClusterInfo])` spawns one task per cluster with an enabled rule on the kube-client runtime (own `ClusterConnection`, list/watch only: pods, deployments, nodes, Warning events). Idempotent and non-blocking. Alerts go straight to the dispatcher on that thread.
-* `adapters/notify`: `NativeNotifier` (notify-rust; macOS and Windows) and `NoopNotifier`.
-* `ui/bell`: `AlertBell` entity and history panel; emits `BellEvent`. `ui/settings`: `AlertsSettingsSection`; emits `AlertsSettingsEvent`.
-* Wiring (shell, `alerts_ops.rs`): `AlertsRuntime` owns the store, dispatcher, monitor and bells. `on_change` runs on a monitor thread, so it only posts to a channel that a UI task drains into `AlertsChanged`. The Alerts page is built by the shell and handed to the Settings window as an `ExtraPage`, so `natikube-settings` does not depend on this crate. Nothing starts in `--demo` or with `--fake-rows` (no monitor, in-memory history).
+* `adapters/notify`: `NativeNotifier` and `NoopNotifier`. The platform sink is `UNUserNotificationCenter` on macOS (`macos.rs`, objc2; needs a `.app` bundle identifier, installs a delegate so banners show while NatiKube is frontmost) and `notify-rust` toasts on Windows (target-specific dependencies). `OsNotifier` also exposes `permission()` / `request_permission()` (blocking; call off the UI thread) returning the pure `PermissionState` (`domain/permission.rs`: not applicable, unavailable, not determined, allowed, denied, refused). The shell reads it at startup and when Settings opens, asks only when the user turns the switch on (or at startup with the switch already on and status not determined), and pushes it to Settings > Alerts, which shows the state under the switch and an "Open System Settings" button (`AppCommand::OpenNotificationSettings`) when denied or refused.
+* Toasts and sound (domain, pure, tested): `ToastQueue` (max 3 visible, 6 s lifetime, hover pauses and restarts the timer on leave, oldest evicted first; time is passed in as milliseconds) and `plan_batch`/`SoundThrottle` (the sound plays once per batch, only when `AlertsConfig.sound` is on and, with `sound_critical_only`, only for a batch holding a critical alert, never twice within 2 s; a filtered batch does not use up the window). `AlertDispatcher::set_on_fired` reports each stored batch with its history row ids. The `SoundPlayer` port has `adapters/sound`: `NSSound` named sounds on macOS (played from a worker thread, because the first AppKit audio call took about 200 ms), `PlaySoundW` aliases on Windows (`windows-sys`, async), silent elsewhere; no audio crate.
+* `ui/bell`: `AlertBell` entity and history panel; emits `BellEvent`. `ui/toast`: `ToastHost` entity painted over the window's bottom right corner (above the status bar, below the palette and modals); it emits the same `BellEvent`s, so a click marks the alert read and opens its object exactly like a bell row. `ui/settings`: `AlertsSettingsSection`; emits `AlertsSettingsEvent`.
+* Wiring (shell, `alerts_ops.rs`): `AlertsRuntime` owns the store, dispatcher, monitor and bells. `on_change` runs on a monitor thread, so it only posts to a channel that a UI task drains into `AlertsChanged`. The Alerts page is built by the shell and handed to the Settings window as an `ExtraPage`, so `natikube-settings` does not depend on this crate. A second UI task drains the `on_fired` channel (batches that arrive together are merged), asks `plan_batch` what the current `AlertsConfig` wants and then pushes the toasts and starts the sound, so neither ever waits on the monitor thread. Nothing starts in `--demo` or with `--fake-rows` (no monitor, in-memory history).
 * `NATIKUBE_CONFIG_DIR` points the app at another NatiKube config folder (settings and history); use it for every QA run.
 
 ### portforward (F6), `natikube_portforward`
@@ -413,7 +416,10 @@ exit_after_first_frame, rows_timeout, app_version, fake_update, .. }` and `run(o
 | `--dump <kind>` | print the engine's objects for `<kind>` on stdout (`namespace/name`, sorted) and exit; no window |
 | `--appearance <name>` | `standard\|command\|native\|observatory`; overrides the saved appearance for this run only (never persisted); `ShellOptions.appearance_override` |
 | `--dump-clusters` | prints `context<TAB>source file name<TAB>unique\|deduped (also in: ...)` per discovered context and exits; no window, no secrets. Uses `load_catalog` + `ClusterInfo::also_in` |
+| `--request-notification-permission` (hidden) | macOS dev check: prints the OS notification permission, asks for it, prints the answer and exits; run `<bundle>/Contents/MacOS/natikube` so the bundle identifier exists |
 | `--fake-alerts <N>` | seeds N sample notifications into `notifications.sqlite`, never watches a cluster; refuses to run unless `NATIKUBE_CONFIG_DIR` is set (use with `--demo`) |
+| `--fake-live-alerts <N>` (hidden) | with `--fake-alerts` in `--demo`: fires N sample alerts one by one (first after 1.5 s, then every 0.9 s) through the real dispatcher, so toasts and sound can be reviewed without a cluster |
+| `--play-sound <NAME>` (hidden) | dev check of the system sound adapter: plays the sound, prints how long `play` took to return and the worker's result, then exits |
 | `--fake-update <version>` | hidden dev flag: shows the update modal for that version without any request (overrides `--demo`); never persisted |
 | `--dump-rows` | F0 compatibility: prints `rows_count=` and `row=ns/name` for pods on stderr before the window opens (used by `scripts/measure.sh`) |
 

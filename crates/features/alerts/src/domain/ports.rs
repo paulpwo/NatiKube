@@ -2,6 +2,7 @@ use natikube_core::Retention;
 use thiserror::Error;
 
 use super::model::{Alert, StoredAlert, Timestamp};
+use super::permission::PermissionState;
 
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 #[error("alert store: {0}")]
@@ -10,6 +11,16 @@ pub struct StoreError(pub String);
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 #[error("os notification: {0}")]
 pub struct NotifyError(pub String);
+
+#[derive(Debug, Error, Clone, PartialEq, Eq)]
+#[error("alert sound: {0}")]
+pub struct SoundError(pub String);
+
+/// Port: plays a system sound by name. Never blocks: the sound plays in the
+/// background.
+pub trait SoundPlayer: Send + Sync {
+    fn play(&self, name: &str) -> Result<(), SoundError>;
+}
 
 /// Port: the notification history.
 pub trait AlertStore: Send + Sync {
@@ -33,4 +44,13 @@ pub trait OsNotifier: Send + Sync {
     fn notify(&self, alert: &Alert) -> Result<(), NotifyError>;
     /// "Send test notification" button.
     fn send_test(&self) -> Result<(), NotifyError>;
+    /// Current permission. May block briefly: call it off the UI thread.
+    fn permission(&self) -> PermissionState {
+        PermissionState::NotApplicable
+    }
+    /// Asks the system for permission and returns the answer. Blocks until
+    /// the user answers the system prompt: call it off the UI thread.
+    fn request_permission(&self) -> PermissionState {
+        self.permission()
+    }
 }

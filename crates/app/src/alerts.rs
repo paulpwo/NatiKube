@@ -23,11 +23,13 @@ fn in_memory() -> Arc<dyn AlertStore> {
     Arc::new(SqliteAlertStore::open_in_memory().expect("in-memory sqlite store"))
 }
 
-/// `--fake-alerts N` seeds sample history into `dir`'s database. It refuses
+/// `--fake-alerts N` seeds sample history into `dir`'s database (and, with
+/// `--fake-live-alerts M`, fires M live alerts after startup). It refuses
 /// to run without an explicit `NATIKUBE_CONFIG_DIR`, so the real history is
 /// never touched, and it never monitors a cluster.
 fn open_fake(
     count: usize,
+    live_fake: usize,
     dir: Option<&Path>,
     explicit_dir: bool,
     catalog: &[ClusterInfo],
@@ -47,6 +49,7 @@ fn open_fake(
         options: AlertsOptions {
             store: Arc::new(store),
             monitor: false,
+            live_fake,
         },
         warning: None,
     })
@@ -73,13 +76,21 @@ fn open_with(
     explicit_dir: bool,
 ) -> Result<OpenedAlerts, String> {
     if let Some(count) = args.fake_alerts {
-        return open_fake(count, dir, explicit_dir, catalog, now);
+        return open_fake(
+            count,
+            args.fake_live_alerts.unwrap_or(0),
+            dir,
+            explicit_dir,
+            catalog,
+            now,
+        );
     }
     if args.demo || args.fake_rows.is_some() {
         return Ok(OpenedAlerts {
             options: AlertsOptions {
                 store: in_memory(),
                 monitor: false,
+                live_fake: 0,
             },
             warning: None,
         });
@@ -92,6 +103,7 @@ fn open_with(
             options: AlertsOptions {
                 store: Arc::new(store),
                 monitor: true,
+                live_fake: 0,
             },
             warning: None,
         },
@@ -99,6 +111,7 @@ fn open_with(
             options: AlertsOptions {
                 store: in_memory(),
                 monitor: true,
+                live_fake: 0,
             },
             warning: Some(format!(
                 "Notification history unavailable ({e}); alerts are kept in memory this session."
