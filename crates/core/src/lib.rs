@@ -26,7 +26,9 @@ pub use format::{
     parse_quantity,
 };
 pub use navigation::{SidebarEntry, SidebarSection, ViewId, kind_title, section_index, sidebar};
-pub use prefs::{Clamp, DataPrefs, Density, LogPrefs, TerminalPrefs, UiPrefs, UserPrefs};
+pub use prefs::{
+    Clamp, DataPrefs, Density, LogPrefs, TerminalPrefs, UiPrefs, UpdatePrefs, UserPrefs,
+};
 pub use resource::{ResourceKind, ResourceRef, kinds};
 pub use settings::{
     ClusterPrefs, LoadReport, MemorySettingsStore, NamespaceFilter, Settings, SettingsError,

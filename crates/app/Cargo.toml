@@ -28,6 +28,7 @@ natikube-resources = { workspace = true }
 natikube-shell = { workspace = true }
 natikube-alerts = { workspace = true }
 natikube-settings = { workspace = true }
+natikube-updates = { workspace = true }
 gpui-kit = { workspace = true }
 kube = { workspace = true }
 k8s-openapi = { workspace = true }

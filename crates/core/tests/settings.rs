@@ -295,3 +295,51 @@ fn load_reporting_turns_a_load_failure_into_defaults_plus_a_warning() {
     let ok = MemorySettingsStore::default().load_reporting();
     assert!(ok.warning.is_none());
 }
+
+#[test]
+fn update_prefs_default_to_checking_with_nothing_skipped() {
+    let s = Settings::default();
+    assert!(s.updates.check_on_startup);
+    assert_eq!(s.updates.skipped_version, None);
+    // A settings file from before the feature gets the same defaults.
+    let back: Settings = serde_json::from_str(r#"{"appearance":"command"}"#).unwrap();
+    assert!(back.updates.check_on_startup);
+}
+
+#[test]
+fn update_prefs_load_tolerantly_and_round_trip() {
+    let back: Settings = serde_json::from_str(
+        r#"{"updates":{"check_on_startup":"yes","skipped_version":"  0.2.0-alpha.1 "}}"#,
+    )
+    .unwrap();
+    // The wrong-typed flag falls back to its default; the version is trimmed.
+    assert!(back.updates.check_on_startup);
+    assert_eq!(
+        back.updates.skipped_version.as_deref(),
+        Some("0.2.0-alpha.1")
+    );
+
+    let back: Settings = serde_json::from_str(r#"{"updates":"garbage"}"#).unwrap();
+    assert_eq!(back.updates, natikube_core::UpdatePrefs::default());
+
+    let back: Settings =
+        serde_json::from_str(r#"{"updates":{"check_on_startup":false,"skipped_version":" "}}"#)
+            .unwrap();
+    assert!(!back.updates.check_on_startup);
+    assert_eq!(back.updates.skipped_version, None);
+
+    let mut s = Settings::default();
+    s.updates.check_on_startup = false;
+    s.updates.skipped_version = Some("0.3.0".into());
+    let again: Settings = serde_json::from_str(&serde_json::to_string(&s).unwrap()).unwrap();
+    assert_eq!(s, again);
+}
+
+#[test]
+fn user_prefs_carry_the_updates_section() {
+    let mut s = Settings::default();
+    let mut prefs = s.user_prefs();
+    prefs.updates.check_on_startup = false;
+    s.apply_user_prefs(prefs);
+    assert!(!s.updates.check_on_startup);
+}

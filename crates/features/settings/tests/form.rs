@@ -78,3 +78,14 @@ fn display_path_abbreviates_home() {
     );
     assert_eq!(display_path(Path::new("/etc/k"), None), "/etc/k");
 }
+
+#[test]
+fn the_update_toggle_changes_only_its_flag() {
+    let mut base = UserPrefs::default();
+    base.updates.skipped_version = Some("0.2.0".into());
+    assert!(base.updates.check_on_startup);
+    let next = apply_edit(&base, PrefEdit::CheckUpdatesOnStartup(false));
+    assert!(!next.updates.check_on_startup);
+    assert_eq!(next.updates.skipped_version.as_deref(), Some("0.2.0"));
+    assert_eq!(next.ui, base.ui);
+}

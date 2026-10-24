@@ -144,6 +144,8 @@ fn main() -> ExitCode {
         demo: args.demo,
         startup_warning,
         alerts: opened.options,
+        app_version: env!("CARGO_PKG_VERSION"),
+        fake_update: args.fake_update,
         on_quit,
     });
     if let Some(background) = background {

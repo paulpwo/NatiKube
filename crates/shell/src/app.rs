@@ -74,6 +74,11 @@ pub struct ShellOptions {
     pub startup_warning: Option<String>,
     /// The alert history and monitor switch.
     pub alerts: AlertsOptions,
+    /// The running version, compared against the latest GitHub release.
+    pub app_version: &'static str,
+    /// `--fake-update <version>`: offer this version without any network
+    /// request (overrides `--demo` and the settings). Never persisted.
+    pub fake_update: Option<String>,
     /// Runs when the app quits (flushes queued settings writes).
     pub on_quit: Option<Arc<dyn Fn() + Send + Sync>>,
 }

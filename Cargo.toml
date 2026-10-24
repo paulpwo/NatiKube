@@ -13,6 +13,7 @@ members = [
     "crates/features/palette",
     "crates/features/settings",
     "crates/features/alerts",
+    "crates/features/updates",
     "crates/shell",
     "crates/app",
 ]
@@ -44,6 +45,7 @@ natikube-terminal = { path = "crates/features/terminal" }
 natikube-palette = { path = "crates/features/palette" }
 natikube-settings = { path = "crates/features/settings" }
 natikube-alerts = { path = "crates/features/alerts" }
+natikube-updates = { path = "crates/features/updates" }
 natikube-shell = { path = "crates/shell" }
 
 # UI: GPUI Kit facade (re-exports the gpui-pre =0.3.9 build it pins). No
@@ -81,6 +83,16 @@ rusqlite = { version = "0.41", features = ["bundled"] }
 
 # OS notifications (natikube-alerts only): macOS and Windows backends, no D-Bus.
 notify-rust = { version = "4", default-features = false }
+# Update check (natikube-updates only): the HTTP stack kube already pulls in
+# (hyper + rustls with the ring provider), plus semver for version precedence.
+# No reqwest and no second TLS stack.
+hyper = { version = "1", default-features = false, features = ["client", "http1"] }
+hyper-util = { version = "0.1", default-features = false, features = ["client-legacy", "http1", "tokio"] }
+hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "native-tokio", "ring", "tls12"] }
+http-body-util = "0.1"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+bytes = "1"
+semver = "1"
 
 # Native save/open dialogs (NSOpenPanel / NSSavePanel on macOS)
 rfd = { version = "0.17", default-features = false }

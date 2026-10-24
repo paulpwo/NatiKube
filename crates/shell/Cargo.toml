@@ -18,6 +18,7 @@ natikube-terminal = { workspace = true }
 natikube-palette = { workspace = true }
 natikube-settings = { workspace = true }
 natikube-alerts = { workspace = true }
+natikube-updates = { workspace = true }
 gpui-kit = { workspace = true }
 rfd = { workspace = true }
 kube = { workspace = true }
