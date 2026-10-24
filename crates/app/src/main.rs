@@ -174,7 +174,7 @@ fn main() -> ExitCode {
 /// at once; the sound itself runs for about a second.
 fn play_sound_check(name: &str) -> ExitCode {
     use natikube_alerts::SoundPlayer as _;
-    let player = natikube_alerts::adapters::sound::SystemSoundPlayer::default();
+    let player = natikube_alerts::adapters::sound::SystemSoundPlayer::new();
     let started = std::time::Instant::now();
     let queued = player.play(name);
     println!(

@@ -21,6 +21,13 @@ pub use windows::SystemSoundPlayer;
 pub struct SystemSoundPlayer;
 
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+impl SystemSoundPlayer {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 impl SoundPlayer for SystemSoundPlayer {
     fn play(&self, _name: &str) -> Result<(), SoundError> {
         Err(SoundError(

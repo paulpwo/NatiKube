@@ -8,6 +8,12 @@ use crate::domain::{SoundError, SoundPlayer};
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SystemSoundPlayer;
 
+impl SystemSoundPlayer {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
 impl SoundPlayer for SystemSoundPlayer {
     fn play(&self, name: &str) -> Result<(), SoundError> {
         let wide: Vec<u16> = name.encode_utf16().chain(std::iter::once(0)).collect();

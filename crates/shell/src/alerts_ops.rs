@@ -236,7 +236,7 @@ impl AlertsRuntime {
             bell,
             rail_bell,
             toasts,
-            sound: Arc::new(SystemSoundPlayer::default()),
+            sound: Arc::new(SystemSoundPlayer::new()),
             sound_throttle: SoundThrottle::new(),
             started: Instant::now(),
             monitor,
