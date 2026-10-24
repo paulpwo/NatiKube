@@ -240,17 +240,15 @@ fn freelens_import_classifies_imported_present_and_missing() {
     let new = put(files.path(), STORE_A, "x");
     let known = put(files.path(), "known.yaml", "x");
     let gone = files.path().join("gone.yaml");
-    let store = format!(
-        r#"{{"clusters":[
-            {{"contextName":"a","kubeConfigPath":"{n}"}},
-            {{"contextName":"b","kubeConfigPath":"{n}"}},
-            {{"contextName":"c","kubeConfigPath":"{k}"}},
-            {{"contextName":"d","kubeConfigPath":"{g}"}},
-            {{"contextName":"e"}}]}}"#,
-        n = new.display(),
-        k = known.display(),
-        g = gone.display()
-    );
+    // serde_json escapes Windows backslashes in the paths.
+    let store = serde_json::json!({ "clusters": [
+        { "contextName": "a", "kubeConfigPath": new },
+        { "contextName": "b", "kubeConfigPath": new },
+        { "contextName": "c", "kubeConfigPath": known },
+        { "contextName": "d", "kubeConfigPath": gone },
+        { "contextName": "e" },
+    ] })
+    .to_string();
     let data = freelens_dir(&store);
     let summary = import_from_freelens(data.path(), std::slice::from_ref(&known), &[]);
     assert_eq!(summary.imported, vec![new.clone()]);
@@ -269,10 +267,9 @@ fn freelens_import_classifies_imported_present_and_missing() {
 fn freelens_import_treats_kube_dir_files_as_present() {
     let kube = tempfile::tempdir().unwrap();
     let inside = put(kube.path(), "config.bak", "x");
-    let data = freelens_dir(&format!(
-        r#"{{"clusters":[{{"kubeConfigPath":"{}"}}]}}"#,
-        inside.display()
-    ));
+    let data = freelens_dir(
+        &serde_json::json!({ "clusters": [{ "kubeConfigPath": inside }] }).to_string(),
+    );
     let summary = import_from_freelens(data.path(), &[], &[kube.path().to_path_buf()]);
     assert!(summary.imported.is_empty());
     assert_eq!(summary.already_present, vec![inside]);

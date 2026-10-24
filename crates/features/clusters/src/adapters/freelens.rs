@@ -95,15 +95,13 @@ mod tests {
         std::fs::write(&b, "x").unwrap();
         std::fs::write(
             data.path().join("lens-cluster-store.json"),
-            format!(r#"{{"clusters":[{{"kubeConfigPath":"{}"}}]}}"#, a.display()),
+            serde_json::json!({ "clusters": [{ "kubeConfigPath": a }] }).to_string(),
         )
         .unwrap();
         std::fs::write(
             data.path().join("lens-user-store.json"),
-            format!(
-                r#"{{"preferences":{{"syncKubeconfigEntries":[{{"path":"{}"}}]}}}}"#,
-                b.display()
-            ),
+            serde_json::json!({ "preferences": { "syncKubeconfigEntries": [{ "path": b }] } })
+                .to_string(),
         )
         .unwrap();
         let found = freelens_kubeconfig_paths(data.path(), std::slice::from_ref(&a));
