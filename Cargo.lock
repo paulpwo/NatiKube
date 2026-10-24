@@ -4273,7 +4273,7 @@ dependencies = [
 
 [[package]]
 name = "natikube-alerts"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "block2 0.6.2",
@@ -4303,7 +4303,7 @@ dependencies = [
 
 [[package]]
 name = "natikube-app"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "dhat",
@@ -4329,7 +4329,7 @@ dependencies = [
 
 [[package]]
 name = "natikube-clusters"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "chrono",
@@ -4354,7 +4354,7 @@ dependencies = [
 
 [[package]]
 name = "natikube-core"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "serde",
  "serde_json",
@@ -4364,7 +4364,7 @@ dependencies = [
 
 [[package]]
 name = "natikube-detail"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "chrono",
@@ -4390,7 +4390,7 @@ dependencies = [
 
 [[package]]
 name = "natikube-kube-client"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "chrono",
@@ -4411,7 +4411,7 @@ dependencies = [
 
 [[package]]
 name = "natikube-logs"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "chrono",
@@ -4436,7 +4436,7 @@ dependencies = [
 
 [[package]]
 name = "natikube-palette"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "chrono",
@@ -4460,7 +4460,7 @@ dependencies = [
 
 [[package]]
 name = "natikube-portforward"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "chrono",
@@ -4484,7 +4484,7 @@ dependencies = [
 
 [[package]]
 name = "natikube-resources"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "chrono",
@@ -4509,7 +4509,7 @@ dependencies = [
 
 [[package]]
 name = "natikube-settings"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "dirs 6.0.0",
@@ -4526,7 +4526,7 @@ dependencies = [
 
 [[package]]
 name = "natikube-shell"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "dirs 6.0.0",
@@ -4560,7 +4560,7 @@ dependencies = [
 
 [[package]]
 name = "natikube-terminal"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "alacritty_terminal",
  "anyhow",
@@ -4586,7 +4586,7 @@ dependencies = [
 
 [[package]]
 name = "natikube-ui-kit"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "gpui-kit",
  "natikube-core",
@@ -4594,7 +4594,7 @@ dependencies = [
 
 [[package]]
 name = "natikube-updates"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "bytes",
  "gpui-kit",
