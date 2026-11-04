@@ -7,7 +7,9 @@ use natikube_core::{AppCommand, PortForwardSpec, ResourceRef, kinds};
 use natikube_ui_kit::{link_text, section_header, status_dot, status_text};
 
 use super::panel::{DetailPanel, unix_now};
-use super::widgets::{card, chip, clip, prop_row, tone, wrap_row};
+use super::widgets::{
+    card, chip, chip_copy, clip, prop_row, prop_row_copy, tone, with_copy, wrap_row,
+};
 use crate::domain::model::{ContainerInfo, ContainerPort, Field, ObjectLink};
 use crate::domain::secret::display_value;
 
@@ -44,7 +46,7 @@ impl DetailPanel {
         )
     }
 
-    fn field_row(&self, index: usize, field: &Field, cx: &mut Context<Self>) -> Div {
+    fn field_row(&self, index: usize, field: &Field, copy: String, cx: &mut Context<Self>) -> Div {
         let value: AnyElement = if let Some(link) = &field.link {
             self.object_link(("detail-field-link", index), link, cx)
                 .into_any_element()
@@ -53,7 +55,13 @@ impl DetailPanel {
         } else {
             div().child(field.value.clone()).into_any_element()
         };
-        prop_row(field.label.clone(), value, cx)
+        prop_row_copy(
+            ("detail-field-copy", index),
+            field.label.clone(),
+            value,
+            copy,
+            cx,
+        )
     }
 
     pub(super) fn render_overview(&self, cx: &mut Context<Self>) -> Stateful<Div> {
@@ -67,6 +75,11 @@ impl DetailPanel {
         // Properties
         col = col.child(section_header("Properties", cx));
         for (i, field) in model.metadata.iter().enumerate() {
+            // Copy the raw value: the timestamp, not "12m ago (...)".
+            let copy = field
+                .link
+                .as_ref()
+                .map_or_else(|| field.value.clone(), |l| l.name.clone());
             let shown = if field.label == "Created" {
                 Field {
                     value: format!("{} ago ({})", model.age(now), field.value),
@@ -75,7 +88,7 @@ impl DetailPanel {
             } else {
                 field.clone()
             };
-            col = col.child(self.field_row(i, &shown, cx));
+            col = col.child(self.field_row(i, &shown, copy, cx));
         }
         if !model.owners.is_empty() {
             let mut links = v_flex().gap_0p5();
@@ -87,32 +100,57 @@ impl DetailPanel {
                         .child(self.object_link(("detail-owner", i), owner, cx)),
                 );
             }
-            col = col.child(prop_row("Controlled by", links, cx));
+            let names = model
+                .owners
+                .iter()
+                .map(|o| o.name.clone())
+                .collect::<Vec<_>>()
+                .join("\n");
+            col = col.child(prop_row_copy(
+                "detail-owners-copy",
+                "Controlled by",
+                links,
+                names,
+                cx,
+            ));
         }
         for (i, field) in model.status.iter().enumerate() {
-            col = col.child(self.field_row(1000 + i, field, cx));
+            let copy = field
+                .link
+                .as_ref()
+                .map_or_else(|| field.value.clone(), |l| l.name.clone());
+            col = col.child(self.field_row(1000 + i, field, copy, cx));
         }
 
         // Labels and annotations
         if !model.labels.is_empty() {
-            col = col.child(section_header("Labels", cx)).child(
-                wrap_row().children(
-                    model
-                        .labels
-                        .iter()
-                        .map(|(k, v)| chip(format!("{k}={}", clip(v, 80)), cx)),
-                ),
-            );
+            col = col
+                .child(section_header("Labels", cx))
+                .child(
+                    wrap_row().children(model.labels.iter().enumerate().map(|(i, (k, v))| {
+                        chip_copy(
+                            ("detail-label-copy", i),
+                            format!("{k}={}", clip(v, 80)),
+                            format!("{k}={v}"),
+                            cx,
+                        )
+                    })),
+                );
         }
         if !model.annotations.is_empty() {
-            col = col.child(section_header("Annotations", cx)).child(
-                wrap_row().children(
-                    model
-                        .annotations
-                        .iter()
-                        .map(|(k, v)| chip(format!("{k}: {}", clip(v, 120)), cx)),
-                ),
-            );
+            col = col
+                .child(section_header("Annotations", cx))
+                .child(
+                    wrap_row().children(model.annotations.iter().enumerate().map(|(i, (k, v))| {
+                        // Copies the value alone: annotations are often JSON.
+                        chip_copy(
+                            ("detail-annotation-copy", i),
+                            format!("{k}: {}", clip(v, 120)),
+                            v.clone(),
+                            cx,
+                        )
+                    })),
+                );
         }
 
         // Conditions
@@ -184,10 +222,14 @@ impl DetailPanel {
         // ConfigMap data
         if !model.data.is_empty() {
             col = col.child(section_header("Data", cx));
-            for (key, value) in &model.data {
+            for (i, (key, value)) in model.data.iter().enumerate() {
                 col = col.child(
                     card(cx)
-                        .child(div().font_weight(FontWeight::MEDIUM).child(key.clone()))
+                        .child(with_copy(
+                            ("detail-data-copy", i),
+                            div().font_weight(FontWeight::MEDIUM).child(key.clone()),
+                            value.clone(),
+                        ))
                         .child(div().text_xs().text_color(muted).child(clip(value, 2000))),
                 );
             }
@@ -255,7 +297,7 @@ impl DetailPanel {
         if self.events.is_empty() {
             col = col.child(div().text_color(muted).child("No events"));
         }
-        for event in &self.events {
+        for (i, event) in self.events.iter().enumerate() {
             col = col.child(
                 card(cx)
                     .child(
@@ -272,7 +314,11 @@ impl DetailPanel {
                                 event.age(now)
                             ))),
                     )
-                    .child(div().text_xs().child(clip(&event.message, MAX_INLINE)))
+                    .child(with_copy(
+                        ("detail-event-copy", i),
+                        div().text_xs().child(clip(&event.message, MAX_INLINE)),
+                        event.message.clone(),
+                    ))
                     .children((!event.source.is_empty()).then(|| {
                         div()
                             .text_xs()
@@ -364,9 +410,11 @@ impl DetailPanel {
                 );
         }
 
-        let mut card = card(cx)
-            .child(head)
-            .child(div().text_xs().text_color(muted).child(c.image.clone()));
+        let mut card = card(cx).child(head).child(with_copy(
+            ("detail-c-image-copy", index),
+            div().text_xs().text_color(muted).child(c.image.clone()),
+            c.image.clone(),
+        ));
         if let Some(restarts) = c.restarts {
             card = card.child(prop_row("Restarts", div().child(restarts.to_string()), cx));
         }

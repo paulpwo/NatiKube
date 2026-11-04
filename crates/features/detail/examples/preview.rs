@@ -26,24 +26,26 @@ fn main() {
     let namespace = (namespace != "-").then(|| namespace.clone());
     let target = ResourceRef::new(info.id.clone(), kind, namespace, name.clone());
 
-    gpui_kit::application().run(move |cx| {
-        gpui_kit::init(cx);
-        apply_theme(cx);
-        cx.on_window_closed(|cx, _| cx.quit()).detach();
-        let options = WindowOptions {
-            window_bounds: Some(WindowBounds::centered(size(px(520.), px(860.)), cx)),
-            ..WindowOptions::default()
-        };
-        gpui_kit::open_window(options, cx, move |window, cx| {
-            let panel = cx.new(|cx| DetailPanel::new(conn, window, cx));
-            panel.update(cx, |p, cx| p.show(target, cx));
-            cx.subscribe(&panel, |_, event: &AppCommand, _| {
-                eprintln!("event: {event:?}")
+    gpui_kit::application()
+        .with_assets(natikube_ui_kit::Icons)
+        .run(move |cx| {
+            gpui_kit::init(cx);
+            apply_theme(cx);
+            cx.on_window_closed(|cx, _| cx.quit()).detach();
+            let options = WindowOptions {
+                window_bounds: Some(WindowBounds::centered(size(px(520.), px(860.)), cx)),
+                ..WindowOptions::default()
+            };
+            gpui_kit::open_window(options, cx, move |window, cx| {
+                let panel = cx.new(|cx| DetailPanel::new(conn, window, cx));
+                panel.update(cx, |p, cx| p.show(target, cx));
+                cx.subscribe(&panel, |_, event: &AppCommand, _| {
+                    eprintln!("event: {event:?}")
+                })
+                .detach();
+                panel
             })
-            .detach();
-            panel
-        })
-        .expect("window");
-        cx.activate(true);
-    });
+            .expect("window");
+            cx.activate(true);
+        });
 }

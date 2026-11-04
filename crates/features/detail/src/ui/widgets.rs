@@ -1,5 +1,6 @@
 //! Small layout helpers local to the detail panel.
 
+use gpui_kit::component::clipboard::Clipboard;
 use gpui_kit::component::{ActiveTheme as _, h_flex, v_flex};
 use gpui_kit::*;
 use natikube_ui_kit::Tone;
@@ -31,6 +32,64 @@ pub(super) fn prop_row(label: impl Into<SharedString>, value: impl IntoElement, 
                 .child(label.into()),
         )
         .child(div().flex_1().min_w_0().child(value))
+}
+
+/// Hover group shared by a row and its copy button.
+const COPY_GROUP: &str = "detail-copy-row";
+
+/// A small copy-to-clipboard icon. It stays faint until its row is hovered,
+/// then turns into a check for two seconds after a click.
+pub(super) fn copy_button(id: impl Into<ElementId>, value: impl Into<SharedString>) -> Div {
+    div()
+        .flex_none()
+        .opacity(0.35)
+        .group_hover(COPY_GROUP, |s| s.opacity(1.))
+        .child(Clipboard::new(id).value(value).tooltip("Copy"))
+}
+
+/// A label/value row with a copy button that copies `copy` (the full, raw
+/// value, not the clipped text on screen).
+pub(super) fn prop_row_copy(
+    id: impl Into<ElementId>,
+    label: impl Into<SharedString>,
+    value: impl IntoElement,
+    copy: impl Into<SharedString>,
+    cx: &App,
+) -> Div {
+    prop_row(label, value, cx)
+        .group(COPY_GROUP)
+        .child(copy_button(id, copy))
+}
+
+/// A label or annotation chip whose copy button copies `copy`.
+pub(super) fn chip_copy(
+    id: impl Into<ElementId>,
+    text: impl Into<SharedString>,
+    copy: impl Into<SharedString>,
+    cx: &App,
+) -> Div {
+    h_flex()
+        .group(COPY_GROUP)
+        .max_w_full()
+        .items_center()
+        .gap_0p5()
+        .child(chip(text, cx).min_w_0())
+        .child(copy_button(id, copy))
+}
+
+/// Any block (card line, message) followed by a copy button.
+pub(super) fn with_copy(
+    id: impl Into<ElementId>,
+    content: impl IntoElement,
+    copy: impl Into<SharedString>,
+) -> Div {
+    h_flex()
+        .group(COPY_GROUP)
+        .w_full()
+        .gap_2()
+        .items_start()
+        .child(div().flex_1().min_w_0().child(content))
+        .child(copy_button(id, copy))
 }
 
 /// A rounded pill (labels, annotations).

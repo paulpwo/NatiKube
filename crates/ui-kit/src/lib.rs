@@ -1,10 +1,12 @@
 //! Shared look and feel: the Freelens-like dark theme and small widgets used
 //! by several features. Depends on GPUI Kit only.
 
+mod icons;
 mod theme;
 mod tokens;
 mod widgets;
 
+pub use icons::Icons;
 pub use theme::{Palette, Tone, apply as apply_theme, hex};
 pub use tokens::{
     ActiveTokens, BASE_FONT_SIZE, COMMAND_FONT, COMPACT_HEADER, COMPACT_ROW, Fonts, NatiTheme,

@@ -89,84 +89,86 @@ pub struct ShellOptions {
 
 /// Opens the main window and runs the GPUI event loop until quit.
 pub fn run(options: ShellOptions) {
-    gpui_kit::application().run(move |cx| {
-        gpui_kit::init(cx);
-        natikube_ui_kit::register_fonts(cx);
-        crate::dock_icon::set_dock_icon();
-        if let Some(on_quit) = options.on_quit.clone() {
-            cx.on_app_quit(move |_| {
-                on_quit();
-                async {}
+    gpui_kit::application()
+        .with_assets(natikube_ui_kit::Icons)
+        .run(move |cx| {
+            gpui_kit::init(cx);
+            natikube_ui_kit::register_fonts(cx);
+            crate::dock_icon::set_dock_icon();
+            if let Some(on_quit) = options.on_quit.clone() {
+                cx.on_app_quit(move |_| {
+                    on_quit();
+                    async {}
+                })
+                .detach();
+            }
+            let saved = options.store.load().unwrap_or_default();
+            let initial = options.appearance_override.unwrap_or(saved.appearance);
+            if let Some(dark) = options.native_dark_override {
+                natikube_ui_kit::force_native_dark(dark, cx);
+            }
+            crate::settings_ops::apply_ui_effects(&saved, cx);
+            set_appearance(initial, cx);
+
+            cx.on_action(|_: &Quit, cx| cx.quit());
+            cx.bind_keys([
+                KeyBinding::new("secondary-q", Quit, app_key_context()),
+                KeyBinding::new("secondary-k", PaletteOpen, app_key_context()),
+                KeyBinding::new("secondary-,", SettingsOpen, app_key_context()),
+                KeyBinding::new("secondary-m", WindowMinimize, app_key_context()),
+                KeyBinding::new("secondary-shift-n", NotificationsOpen, app_key_context()),
+            ]);
+            install_menus(initial, cx);
+
+            let window_options = WindowOptions {
+                window_bounds: Some(WindowBounds::centered(size(px(1360.), px(860.)), cx)),
+                titlebar: Some(TitlebarOptions {
+                    title: Some("NatiKube".into()),
+                    ..TitlebarOptions::default()
+                }),
+                ..WindowOptions::default()
+            };
+
+            let options_open_settings = options.open_settings;
+            let options_settings_section = options.settings_section;
+            let options_open_alerts = options.open_alerts;
+            let (window, shell) = gpui_kit::open_window(window_options, cx, move |window, cx| {
+                cx.new(|cx| ShellView::new(options, window, cx))
+            })
+            .expect("failed to open the main window");
+            // Only the main window ends the app; Settings may close on its own.
+            let main_id = window.window_id();
+            cx.on_window_closed(move |cx, closed| {
+                if closed == main_id {
+                    cx.quit();
+                }
             })
             .detach();
-        }
-        let saved = options.store.load().unwrap_or_default();
-        let initial = options.appearance_override.unwrap_or(saved.appearance);
-        if let Some(dark) = options.native_dark_override {
-            natikube_ui_kit::force_native_dark(dark, cx);
-        }
-        crate::settings_ops::apply_ui_effects(&saved, cx);
-        set_appearance(initial, cx);
-
-        cx.on_action(|_: &Quit, cx| cx.quit());
-        cx.bind_keys([
-            KeyBinding::new("secondary-q", Quit, app_key_context()),
-            KeyBinding::new("secondary-k", PaletteOpen, app_key_context()),
-            KeyBinding::new("secondary-,", SettingsOpen, app_key_context()),
-            KeyBinding::new("secondary-m", WindowMinimize, app_key_context()),
-            KeyBinding::new("secondary-shift-n", NotificationsOpen, app_key_context()),
-        ]);
-        install_menus(initial, cx);
-
-        let window_options = WindowOptions {
-            window_bounds: Some(WindowBounds::centered(size(px(1360.), px(860.)), cx)),
-            titlebar: Some(TitlebarOptions {
-                title: Some("NatiKube".into()),
-                ..TitlebarOptions::default()
-            }),
-            ..WindowOptions::default()
-        };
-
-        let options_open_settings = options.open_settings;
-        let options_settings_section = options.settings_section;
-        let options_open_alerts = options.open_alerts;
-        let (window, shell) = gpui_kit::open_window(window_options, cx, move |window, cx| {
-            cx.new(|cx| ShellView::new(options, window, cx))
-        })
-        .expect("failed to open the main window");
-        // Only the main window ends the app; Settings may close on its own.
-        let main_id = window.window_id();
-        cx.on_window_closed(move |cx, closed| {
-            if closed == main_id {
-                cx.quit();
+            if options_open_settings {
+                let shell = shell.clone();
+                let _ = window.update(cx, move |_, window, cx| {
+                    shell.update(cx, |view, cx| {
+                        view.dispatch(AppCommand::OpenSettings, window, cx)
+                    })
+                });
             }
-        })
-        .detach();
-        if options_open_settings {
-            let shell = shell.clone();
-            let _ = window.update(cx, move |_, window, cx| {
-                shell.update(cx, |view, cx| {
-                    view.dispatch(AppCommand::OpenSettings, window, cx)
-                })
-            });
-        }
-        if let Some(section) = options_settings_section.filter(|_| options_open_settings) {
-            let shell = shell.clone();
-            let _ = window.update(cx, move |_, _, cx| {
-                shell.update(cx, |view, cx| view.select_settings_section(section, cx))
-            });
-        }
-        if options_open_alerts {
-            let shell = shell.clone();
-            let _ = window.update(cx, move |_, window, cx| {
-                shell.update(cx, |view, cx| {
-                    view.dispatch(AppCommand::OpenAlerts, window, cx)
-                })
-            });
-        }
-        wire_menu_actions(window, shell, cx);
-        cx.activate(true);
-    });
+            if let Some(section) = options_settings_section.filter(|_| options_open_settings) {
+                let shell = shell.clone();
+                let _ = window.update(cx, move |_, _, cx| {
+                    shell.update(cx, |view, cx| view.select_settings_section(section, cx))
+                });
+            }
+            if options_open_alerts {
+                let shell = shell.clone();
+                let _ = window.update(cx, move |_, window, cx| {
+                    shell.update(cx, |view, cx| {
+                        view.dispatch(AppCommand::OpenAlerts, window, cx)
+                    })
+                });
+            }
+            wire_menu_actions(window, shell, cx);
+            cx.activate(true);
+        });
 }
 
 /// Routes one menu action to the shell as an [`AppCommand`].
